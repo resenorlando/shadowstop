@@ -55,7 +55,7 @@
     $('sunPosition').textContent = `Sun azimuth ${row.sun_az.toFixed(1)}° · elevation ${row.sun_el.toFixed(1)}°`;
     if (map?.isStyleLoaded()) {
       map.setLight({ anchor:'map', position:[1.5, row.sun_az, 90 - row.sun_el], color:'#fff1d4', intensity:.45 });
-      if (map.getLayer('canopy')) map.setLayoutProperty('canopy', 'visibility', mode === 'after' ? 'visible' : 'none');
+      if (map.getLayer('canopy')) map.setLayoutProperty('canopy', 'visibility', mode === 'after' && scene?.proposals?.[0]?.shape === 'box' ? 'visible' : 'none');
       if (map.getLayer('waiting-fill')) map.setPaintProperty('waiting-fill', 'fill-color', mode === 'after' ? '#d1efa2' : '#efad7d');
       drawHeat();
     }
@@ -112,7 +112,11 @@
     const proposal = scene.proposals?.[0];
     if (proposal?.shape === 'box') {
       const data = polygon(footprint(proposal));
-      if (map.getSource('proposal')) map.getSource('proposal').setData(data);
+      if (map.getSource('proposal')) {
+        map.getSource('proposal').setData(data);
+        map.setPaintProperty('canopy','fill-extrusion-height',proposal.z1);
+        map.setPaintProperty('canopy','fill-extrusion-base',proposal.z0);
+      }
       else {
         map.addSource('proposal',{type:'geojson',data});
         map.addLayer({id:'canopy',type:'fill-extrusion',source:'proposal',layout:{visibility:mode === 'after' ? 'visible' : 'none'},paint:{'fill-extrusion-color':'#c9dca3','fill-extrusion-height':proposal.z1,'fill-extrusion-base':proposal.z0,'fill-extrusion-opacity':.8}});
@@ -240,12 +244,13 @@
       if(!accepted){$('liveStatus').textContent='No new design passed. The recorded verified design remains selected.';return;}
       const nextScene=response.final_scene;
       const results=await Promise.all([api('/api/score',{body:{scene:nextScene}}),api('/api/score',{body:{scene:nextScene,include_proposals:true}})]);
+      try {const saved=JSON.stringify(response);localStorage.setItem('shadowstop:lastPropose',saved);localStorage.setItem('shadowstop:lastPropose:'+nextScene.id,saved);} catch {toast('This browser could not save the run for the workbench.');}
       before=results[0];after=results[1];scene=nextScene;verdict=accepted;verified=true;liveRun=true;heat={before:null,after:null};heatPromise=null;
       $('photoBefore').src=hero.photo_before;$('photoAfter').src=hero.photo_before;
       document.querySelector('.photo-label.right').textContent='NEW DESIGN · IMAGE NOT GENERATED';
       document.querySelector('.photo-credit').textContent='A new design was verified. This is the original street photo on both sides; the archived illustration belongs to the earlier design. Use the workbench to render the new proposal.';
-      $('designMaterial').textContent=accepted.material || 'Verified material';
-      $('liveStatus').textContent=response.argon_error?'Gemini was unavailable; the deterministic search produced this accepted design.':'New proposal accepted by the verifier. Use the workbench for a matching street render.';
+      $('designMaterial').textContent=accepted.material?.replace(/_/g,' ') || 'Verified material';
+      $('liveStatus').textContent=response.argon_error?'Gemini was unavailable; deterministic search produced this accepted design. Open workbench → Replay last run to continue.':'New proposal accepted. Open workbench → Replay last run to render this design on the street.';
       $('approveCheck').checked=false;$('exportBtn').disabled=true;renderMetrics();addGeometry();ensureHeat();
     } catch(error){$('liveStatus').textContent=error.message;}
     finally{button.disabled=false;}
