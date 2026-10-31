@@ -8,6 +8,8 @@ import hashlib
 import json
 import math
 import pathlib
+import re
+import time
 
 import requests
 from shapely.geometry import Polygon
@@ -23,23 +25,49 @@ MIRRORS = [
 UA = {"User-Agent": "ShadowStop-hackathon/0.1"}
 LEVEL_HEIGHT_M = 3.0
 DEFAULT_BUILDING_M = 9.0
+_overpass_down_until = 0.0
+
+LONDON_PRESETS = {
+    "E8": (51.5452, -0.0554, "Hackney Central / Mare Street (E8)"),
+    "E81EA": (51.5452, -0.0554, "Hackney Town Hall (E8 1EA)"),
+    "HACKNEY": (51.5452, -0.0554, "Hackney Town Hall (E8 1EA)"),
+    "SW9": (51.4626, -0.1145, "Brixton Road (SW9)"),
+    "SW98PS": (51.4626, -0.1145, "Brixton Station (SW9 8PS)"),
+    "BRIXTON": (51.4626, -0.1145, "Brixton Station (SW9 8PS)"),
+    "N1": (51.5308, -0.1238, "King's Cross / Caledonian Rd (N1)"),
+    "N19AL": (51.5308, -0.1238, "King's Cross Station (N1 9AL)"),
+    "KINGSCROSS": (51.5308, -0.1238, "King's Cross Station (N1 9AL)"),
+    "SE1": (51.5033, -0.1133, "Waterloo Road (SE1)"),
+    "SE17PB": (51.5033, -0.1133, "Waterloo Station (SE1 7PB)"),
+    "WATERLOO": (51.5033, -0.1133, "Waterloo Station (SE1 7PB)"),
+    "SE15": (51.4735, -0.0690, "Peckham High Street (SE15)"),
+    "NW1": (51.5390, -0.1426, "Camden Town (NW1)"),
+    "E1": (51.5225, -0.0715, "Shoreditch / Whitechapel (E1)"),
+    "E15": (51.5416, -0.0022, "Stratford Bus Station (E15)"),
+    "SW1A": (51.5010, -0.1246, "Westminster / Whitehall (SW1A)"),
+    "SW1A2AA": (51.5010, -0.1246, "Whitehall (SW1A 2AA)"),
+}
 
 
 def overpass(query: str) -> dict:
+    global _overpass_down_until
     CACHE.mkdir(parents=True, exist_ok=True)
     key = CACHE / (hashlib.sha1(query.encode()).hexdigest()[:16] + ".json")
     if key.exists():
         return json.loads(key.read_text(encoding="utf-8"))
+    if time.time() < _overpass_down_until:
+        raise RuntimeError("Overpass recently timed out; using OSM API fallback")
     last = None
     for url in MIRRORS:
         try:
-            r = requests.post(url, data={"data": query}, headers=UA, timeout=12)
+            r = requests.post(url, data={"data": query}, headers=UA, timeout=4)
             r.raise_for_status()
             data = r.json()
             key.write_text(json.dumps(data), encoding="utf-8")
             return data
         except Exception as e:  # try the next mirror
             last = e
+    _overpass_down_until = time.time() + 180.0
     raise RuntimeError(f"All Overpass mirrors failed: {last}")
 
 
@@ -74,6 +102,14 @@ def osm_api_bbox(south: float, west: float, north: float, east: float) -> dict:
     key = CACHE / ("api-" + hashlib.sha1(bbox.encode()).hexdigest()[:16] + ".json")
     if key.exists():
         return json.loads(key.read_text(encoding="utf-8"))
+    for p in CACHE.glob("api-*.json"):
+        try:
+            d = json.loads(p.read_text(encoding="utf-8"))
+            b = d.get("_bbox")
+            if b and b[0] <= south + 2e-4 and b[1] <= west + 2e-4 and b[2] >= north - 2e-4 and b[3] >= east - 2e-4:
+                return d
+        except Exception:
+            continue
     r = requests.get(f"https://api.openstreetmap.org/api/0.6/map?bbox={bbox}", headers=UA, timeout=40)
     r.raise_for_status()
     root = ET.fromstring(r.content)
@@ -91,7 +127,7 @@ def osm_api_bbox(south: float, west: float, north: float, east: float) -> dict:
         geom = [{"lat": nodes[nd.get("ref")][0], "lon": nodes[nd.get("ref")][1]}
                 for nd in w.findall("nd") if nd.get("ref") in nodes]
         els.append({"type": "way", "id": int(w.get("id")), "tags": tags, "geometry": geom})
-    data = {"elements": els}
+    data = {"_bbox": [round(south, 6), round(west, 6), round(north, 6), round(east, 6)], "elements": els}
     key.write_text(json.dumps(data), encoding="utf-8")
     return data
 
@@ -108,7 +144,8 @@ def stops_in_bbox(south: float, west: float, north: float, east: float) -> list[
         elements = overpass(q).get("elements", [])
     except RuntimeError:
         elements = [e for e in osm_api_bbox(south, west, north, east)["elements"]
-                    if e["type"] == "node" and e.get("tags", {}).get("highway") == "bus_stop"]
+                    if e["type"] == "node" and e.get("tags", {}).get("highway") == "bus_stop"
+                    and south <= e["lat"] <= north and west <= e["lon"] <= east]
     out = []
     for el in elements:
         t = el.get("tags", {})
@@ -238,3 +275,47 @@ def scan(south: float, west: float, north: float, east: float, limit: int = 40) 
         out.append(s)
     out.sort(key=lambda r: (r["score"] is None, r["score"] if r["score"] is not None else 1))
     return out
+
+
+def geocode_london(q: str) -> dict:
+    """Resolve a London postcode or area name to {lat, lon, label}. Cached in scenes/cache/."""
+    raw = (q or "").strip()
+    if not raw:
+        raise ValueError("Empty postcode or place query")
+    norm = re.sub(r"[^A-Z0-9]", "", raw.upper())
+    if norm in LONDON_PRESETS:
+        lat, lon, label = LONDON_PRESETS[norm]
+        return {"lat": lat, "lon": lon, "label": label}
+    CACHE.mkdir(parents=True, exist_ok=True)
+    key = CACHE / ("geo-" + hashlib.sha1(norm.encode()).hexdigest()[:16] + ".json")
+    if key.exists():
+        return json.loads(key.read_text(encoding="utf-8"))
+    for url in (f"https://api.postcodes.io/postcodes/{norm}", f"https://api.postcodes.io/outcodes/{norm}"):
+        try:
+            r = requests.get(url, headers=UA, timeout=4)
+            if r.status_code == 200:
+                res = r.json().get("result") or {}
+                if res.get("latitude") is not None and res.get("longitude") is not None:
+                    out = {"lat": float(res["latitude"]), "lon": float(res["longitude"]),
+                           "label": f"{res.get('postcode') or res.get('outcode') or raw.upper()} ({res.get('admin_district') or 'London'})"}
+                    key.write_text(json.dumps(out), encoding="utf-8")
+                    return out
+        except Exception:
+            pass
+    try:
+        r = requests.get("https://nominatim.openstreetmap.org/search",
+                         params={"q": f"{raw}, London, UK", "format": "json", "limit": 1, "countrycodes": "gb"},
+                         headers=UA, timeout=5)
+        r.raise_for_status()
+        hits = r.json()
+        if hits:
+            out = {"lat": float(hits[0]["lat"]), "lon": float(hits[0]["lon"]),
+                   "label": hits[0].get("display_name", raw).split(",")[0]}
+            key.write_text(json.dumps(out), encoding="utf-8")
+            return out
+    except Exception:
+        pass
+    for k, (lat, lon, label) in LONDON_PRESETS.items():
+        if norm.startswith(k) or k.startswith(norm):
+            return {"lat": lat, "lon": lon, "label": label}
+    raise RuntimeError(f"Could not find London postcode or place: {raw!r}")

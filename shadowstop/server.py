@@ -45,8 +45,7 @@ def score(req: ScoreReq):
 
 @app.get("/api/scene/demo")
 def scene_demo():
-    # Real stop (OSM buildings line up with the satellite ground); the synthetic scene stays at /scenes/demo.json
-    return json.loads((ROOT / "scenes" / "hackney_town_hall.json").read_text(encoding="utf-8"))
+    return json.loads((ROOT / "scenes" / "demo.json").read_text(encoding="utf-8"))
 
 
 @app.get("/api/scene/from_osm")
@@ -190,14 +189,19 @@ def _named_points(scene: dict) -> list[dict]:
 
 @app.post("/api/photo-check")
 async def photo_check(scene: str = Form(...), photo: UploadFile = File(...),
-                      time: str | None = Form(None), utc_offset: float = Form(0)):
+                      time: str | None = Form(None), utc_offset: float | None = Form(None),
+                      fallback_time: str | None = Form(None)):
     """Reality check: does the model predict which parts of the stop are sunny in a real, timestamped photo?"""
     sc = json.loads(scene)
+    if utc_offset is None:
+        utc_offset = float(sc.get("utc_offset", 0))
     data = await photo.read()
     local = _exif_time(data)
-    if time:  # manual override "YYYY-MM-DD HH:MM" or "HH:MM" (today)
-        local = (datetime.strptime(time, "%Y-%m-%d %H:%M") if "-" in time
-                 else datetime.combine(datetime.now().date(), datetime.strptime(time, "%H:%M").time()))
+    t_str = (time or "").strip() or (fallback_time.strip() if local is None and fallback_time else "")
+    if t_str:  # manual override "YYYY-MM-DD HH:MM" or "HH:MM" (scene date)
+        sc_date = datetime.strptime(sc.get("date", "2026-07-19"), "%Y-%m-%d").date()
+        local = (datetime.strptime(t_str[:16], "%Y-%m-%d %H:%M") if "-" in t_str
+                 else datetime.combine(sc_date, datetime.strptime(t_str[:5], "%H:%M").time()))
     if local is None:
         raise HTTPException(400, "Photo has no timestamp: enter the time it was taken")
     dt_utc = (local - timedelta(hours=utc_offset)).replace(tzinfo=timezone.utc)
