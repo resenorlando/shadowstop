@@ -92,6 +92,8 @@ const state = {
   accepted: null,     // accepted attempt (verifier said yes)
   approved: null,     // {at: Date} once the human operator approves
   beforeBaseline: null, // verified score before any proposal (for the brief)
+  materials: {},      // material catalogue from /api/propose
+  budget: null,       // budget_gbp echoed by /api/propose
 };
 
 // ---------------------------------------------------------------- three.js setup
@@ -173,8 +175,15 @@ const MAT = {
   trunk: () => new THREE.MeshStandardMaterial({ color: 0x6b4a2b, roughness: 1 }),
 };
 
+const PROPOSAL_MAT = {
+  opaque_metal_roof: () => new THREE.MeshStandardMaterial({ color: 0x4a4f57, roughness: 0.45, metalness: 0.6 }),
+  solar_polycarbonate: () => new THREE.MeshStandardMaterial({ color: 0xb5793a, roughness: 0.3, metalness: 0.2, transparent: true, opacity: 0.65, depthWrite: false }),
+  shade_fabric: () => new THREE.MeshStandardMaterial({ color: 0xf1ebdd, roughness: 0.95, side: THREE.DoubleSide }),
+  street_tree: () => MAT.proposalTree(),
+};
 function materialFor(o, isProposal) {
   const op = o.opacity ?? 1;
+  if (isProposal && o.material && PROPOSAL_MAT[o.material]) return PROPOSAL_MAT[o.material]();
   if (isProposal || o.source === 'proposal' || o.kind === 'canopy') {
     return o.kind === 'tree' ? MAT.proposalTree() : MAT.canopy();
   }
@@ -293,9 +302,11 @@ function buildScene3D() {
   updateHeatmap();
 }
 
-function setProposals3D(list, highlight) {
+function setProposals3D(list, highlight, material) {
   clearGroup(propGroup);
-  for (const p of list || []) {
+  const fallbackMat = material ?? state.accepted?.material;
+  for (const p0 of list || []) {
+    const p = { ...p0, material: p0.material ?? fallbackMat };
     const g = buildOccluder(p, true);
     if (highlight) g.traverse((n) => { if (n.material?.color && n.isMesh) { n.material.color.set(highlight); n.material.emissive?.set(0x220000); } });
     propGroup.add(g);
@@ -617,6 +628,7 @@ window.addEventListener('keydown', (e) => {
 });
 
 // ---------------------------------------------------------------- Argon propose loop
+$('noLimit').addEventListener('change', () => { $('budgetInput').disabled = $('noLimit').checked; });
 $('proposeBtn').addEventListener('click', async () => {
   if (!state.scene || state.proposing) return;
   state.proposing = true;
@@ -628,7 +640,12 @@ $('proposeBtn').addEventListener('click', async () => {
   state.accepted = null; state.approved = null; state.attempts = [];
   updateGate();
   try {
-    const res = await api('/api/propose', { method: 'POST', body: { scene: state.scene }, timeout: 120000 });
+    const noLimit = $('noLimit').checked;
+    const bv = Number($('budgetInput').value);
+    const budget_gbp = noLimit || !isFinite(bv) || bv <= 0 ? null : bv;
+    const res = await api('/api/propose', { method: 'POST', body: { scene: state.scene, budget_gbp }, timeout: 120000 });
+    state.materials = res.materials || {};
+    state.budget = res.budget_gbp ?? budget_gbp;
     log.innerHTML = '';
     setMode('after');
     const attempts = res.attempts || [];
@@ -641,7 +658,7 @@ $('proposeBtn').addEventListener('click', async () => {
       card.innerHTML = `<div class="head"><span class="num">Attempt ${i + 1}${at.by ? ' · by ' + esc(at.by) : ''}</span><span class="verdict pending"><span class="spinner"></span>VERIFYING</span></div>
         <div class="note">${esc(note)}</div>`;
       log.appendChild(card);
-      setProposals3D(props);
+      setProposals3D(props, undefined, at.material);
       card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       await sleep(1500);
       const sb = scoreOf(at.score_before), sa = scoreOf(at.score_after);
@@ -649,15 +666,17 @@ $('proposeBtn').addEventListener('click', async () => {
       card.querySelector('.verdict').outerHTML = at.accepted ? '<span class="verdict ok">ACCEPTED</span>' : '<span class="verdict bad">REJECTED</span>';
       card.insertAdjacentHTML('beforeend', `
         <div class="nums"><span style="color:var(--red)">${pct(sb)}</span> → <span style="color:${at.accepted ? 'var(--green)' : 'var(--red)'}">${pct(sa)}</span></div>
+        ${costLine(at)}
         ${at.reason ? `<div class="reason">${esc(at.reason)}</div>` : ''}
         ${at.worst_time ? `<div class="cex">Counterexample: ${esc(at.worst_time)}</div>` : ''}`);
       if (!at.accepted) {
-        setProposals3D(props, 0xc0392b);
+        setProposals3D(props, 0xc0392b, at.material);
         if (at.worst_time) setHour(parseClock(at.worst_time)); // show the moment it fails
       }
       await sleep(at.accepted ? 1200 : 2000);
     }
     const acc = [...attempts].reverse().find((a) => a.accepted) || null;
+    state.accepted = acc; // set before loading final_scene so the proposal renders in its material
     if (res.final_scene) {
       await loadScene(res.final_scene, { keepLog: true });
       setMode('after');
@@ -681,8 +700,52 @@ $('proposeBtn').addEventListener('click', async () => {
   }
 });
 
+// ---------------------------------------------------------------- costs / business case
+const gbp = (v, dp = 0) => (v == null || isNaN(v) ? '--' : '£' + Number(v).toLocaleString('en-GB', { minimumFractionDigits: dp, maximumFractionDigits: dp }));
+const matLabel = (key) => (key ? state.materials?.[key]?.label || String(key).replace(/_/g, ' ') : null);
+const TFL_SCALE = "For scale: TfL's expected cost for a new shelter is about £12,500–£24,500 (London Assembly, Nov 2024). Costs are planning assumptions, not quotes.";
+function costLine(at) {
+  const bits = [];
+  if (at.material) bits.push(`<b>${esc(matLabel(at.material))}</b>`);
+  if (at.cost_gbp != null) bits.push(`${gbp(at.cost_gbp)} indicative`);
+  if (at.accepted && at.value?.gbp_per_shaded_passenger_hour != null) bits.push(`<span style="color:var(--green)">${gbp(at.value.gbp_per_shaded_passenger_hour, 2)} per extra shaded passenger-hour</span>`);
+  return bits.length ? `<div class="cost">${bits.join(' · ')}</div>` : '';
+}
+function businessCase(at) {
+  if (!at) return null;
+  const v = at.value || {};
+  return {
+    material: at.material ?? null,
+    material_label: matLabel(at.material),
+    material_catalogue: at.material ? state.materials?.[at.material] ?? null : null,
+    indicative_cost_gbp: at.cost_gbp ?? null,
+    budget_gbp: state.budget ?? null,
+    extra_shaded_passenger_hours_per_year: v.extra_shaded_passenger_hours_per_year ?? null,
+    gbp_per_shaded_passenger_hour: v.gbp_per_shaded_passenger_hour ?? null,
+    assumptions: v.assumptions ?? null,
+    note: TFL_SCALE,
+  };
+}
+function renderBizCase() {
+  const box = $('bizCase');
+  const bc = businessCase(state.accepted);
+  if (!bc || (bc.indicative_cost_gbp == null && !bc.material)) { box.classList.add('hidden'); return; }
+  const a = bc.assumptions;
+  box.innerHTML = `<div class="biz-h">Business case <span class="muted">(indicative)</span></div>
+    <div class="biz-grid">
+      <span>Material</span><b>${esc(bc.material_label || '--')}</b>
+      <span>Indicative cost</span><b>${gbp(bc.indicative_cost_gbp)}${bc.budget_gbp != null ? ` <span class="muted small">of ${gbp(bc.budget_gbp)} budget</span>` : ''}</b>
+      <span>Extra shaded passenger-hours / yr</span><b>${bc.extra_shaded_passenger_hours_per_year != null ? Math.round(bc.extra_shaded_passenger_hours_per_year).toLocaleString('en-GB') : '--'}</b>
+      <span>£ per shaded passenger-hour</span><b class="g">${gbp(bc.gbp_per_shaded_passenger_hour, 2)}</b>
+    </div>
+    ${a ? `<div class="small muted">Assumes ${esc(a.passengers_per_day)} passengers/day, ${esc(a.wait_min)} min wait, ${esc(a.hot_days_per_year)} hot days/yr, ${esc(a.life_years)}-yr life.</div>` : ''}
+    <div class="small muted biz-scale">${esc(TFL_SCALE)}</div>`;
+  box.classList.remove('hidden');
+}
+
 // ---------------------------------------------------------------- human-in-control approval + council brief
 function updateGate() {
+  renderBizCase();
   const acc = !!state.accepted;
   $('approvalBox').classList.toggle('hidden', !acc && !state.approved);
   $('exportBtn').disabled = !state.approved;
@@ -732,8 +795,10 @@ $('exportBtn').addEventListener('click', () => {
       engine: state.before?._client ? 'in-browser fallback' : 'server',
     },
     accepted_proposal: props.length === 1 ? props[0] : props,
+    business_case: businessCase(acc),
     attempts: state.attempts.map((a, i) => ({
       n: i + 1, by: a.by ?? null, proposal: a.proposal, verdict: a.accepted ? 'ACCEPTED' : 'REJECTED',
+      material: a.material ?? null, material_label: matLabel(a.material), cost_gbp: a.cost_gbp ?? null, value: a.value ?? null,
       reason: a.reason ?? null, score_before: scoreOf(a.score_before), score_after: scoreOf(a.score_after), worst_time: a.worst_time ?? null,
     })),
     occluder_provenance: (s.occluders || []).map((o) => ({ id: o.id, kind: o.kind, source: o.source, confidence: o.confidence ?? null, note: o.note ?? null })),

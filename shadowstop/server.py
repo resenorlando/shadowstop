@@ -67,6 +67,7 @@ def scan(south: float, west: float, north: float, east: float, limit: int = 40):
 class ProposeReq(BaseModel):
     scene: dict
     use_argon: bool = True
+    budget_gbp: float | None = None
 
 
 def _obvious_fix(scene: dict) -> dict:
@@ -75,22 +76,25 @@ def _obvious_fix(scene: dict) -> dict:
     roof = next((o for o in scene.get("occluders", []) if o.get("kind") == "shelter_roof"), None)
     if roof:
         p = {k: roof[k] for k in roof if k not in ("source", "note", "confidence")}
-        p.update({"id": "obvious-fix", "kind": "canopy", "opacity": 1.0})
+        p.update({"id": "obvious-fix", "kind": "canopy", "material": "opaque_metal_roof"})
         note = "Obvious fix: swap the clear roof for a solid one, same size and position."
     else:
         poly = Polygon(scene["waiting_area"])
         c = poly.centroid
         minx, miny, maxx, maxy = poly.bounds
         p = {"id": "obvious-fix", "kind": "canopy", "shape": "box", "center": [c.x, c.y],
-             "size": [min(maxx - minx, 4), min(maxy - miny, 1.4)], "rotation_deg": 0, "z0": 2.4, "z1": 2.5, "opacity": 1.0}
+             "size": [min(maxx - minx, 4), min(maxy - miny, 1.4)], "rotation_deg": 0, "z0": 2.4, "z1": 2.5,
+             "material": "opaque_metal_roof"}
         note = "Obvious fix: a standard 4 x 1.4 m solid roof over the stop."
     p.update({"source": "proposal", "note": note})
     return p
 
 
-def _attempt(scene: dict, prop: dict, who: str) -> dict:
-    v = engine.evaluate(scene, prop)
+def _attempt(scene: dict, prop: dict, who: str, budget: float | None = None) -> dict:
+    v = engine.evaluate(scene, prop, budget)
+    prop = dict(v["proposal"], _interaction_id=prop.get("_interaction_id"))
     return {"by": who, "proposal": prop, "accepted": v["accepted"],
+            "cost_gbp": v["cost_gbp"], "material": prop.get("material"), "value": v["value"],
             "reason": "; ".join(v["reasons"]) or "passes every check",
             "score_before": v["score_before"], "score_after": v["score_after"],
             "worst_time": v["worst_time"], "worst_time_shade": v["worst_time_shade"],
@@ -101,15 +105,16 @@ def _attempt(scene: dict, prop: dict, who: str) -> dict:
 def propose(req: ProposeReq):
     scene = dict(req.scene, proposals=[])
     baseline = engine.score(scene)
-    attempts = [_attempt(scene, _obvious_fix(scene), "baseline")]
+    budget = req.budget_gbp
+    attempts = [_attempt(scene, _obvious_fix(scene), "baseline", budget)]
     argon_error = None
     if req.use_argon:
         history = [{"proposal": attempts[0]["proposal"], "verdict": attempts[0]["reason"],
                     "shade_after": attempts[0]["score_after"]}]
         for _ in range(MAX_ARGON_ATTEMPTS):
             try:
-                prop = argon.propose_fix(scene, baseline, history)
-                att = _attempt(scene, prop, "argon")
+                prop = argon.propose_fix(scene, baseline, history, budget)
+                att = _attempt(scene, prop, "argon", budget)
             except Exception as e:
                 argon_error = f"{type(e).__name__}: {str(e)[:200]}"
                 break
@@ -123,10 +128,11 @@ def propose(req: ProposeReq):
     accepted = [a for a in attempts if a["accepted"]]
     chosen = accepted[-1] if accepted else None
     if chosen is None and ref:  # nothing passed: show the search result, clearly labelled
-        chosen = _attempt(scene, dict(ref["proposal"], note="Exhaustive search result (Argon did not pass)"), "search")
+        chosen = _attempt(scene, dict(ref["proposal"], note="Exhaustive search result (Argon did not pass)"), "search", budget)
         attempts.append(chosen)
     final_scene = dict(scene, proposals=[chosen["proposal"]] if chosen else [])
     return {"baseline": {"score": baseline["score"], "worst_time": baseline["worst_time"]},
+            "budget_gbp": budget, "materials": __import__("shadowstop.materials", fromlist=["CATALOGUE"]).CATALOGUE,
             "attempts": attempts, "final_scene": final_scene,
             "reference_search": ref, "argon_error": argon_error}
 
@@ -217,6 +223,7 @@ async def render_fix(scene: str = Form(...), photo: UploadFile = File(...)):
         raise HTTPException(400, "No proposal in the scene yet: ask Argon first")
     prop = props[-1]
     verdict = engine.evaluate(dict(sc, proposals=[]), prop)  # re-verify: only render designs that pass
+    prop = verdict["proposal"]
     if not verdict["accepted"]:
         raise HTTPException(409, "This design has not passed the verifier: " + "; ".join(verdict["reasons"]))
     import base64

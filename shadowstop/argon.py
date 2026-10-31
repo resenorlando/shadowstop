@@ -15,6 +15,7 @@ MODEL = os.environ.get("SHADOWSTOP_MODEL", "gemini-4-argon")
 IMAGE_MODEL = os.environ.get("SHADOWSTOP_IMAGE_MODEL", "gemini-nano-banana-2.1")
 # "interactions" (recommended Interactions API, server-side state across retries) or "generate"
 API = os.environ.get("SHADOWSTOP_API", "interactions")
+THINKING = os.environ.get("SHADOWSTOP_THINKING", "low")
 _client = None
 
 
@@ -99,7 +100,7 @@ def apply_updates(scene: dict, upd: dict) -> dict:
     return sc
 
 
-def propose_fix(scene: dict, baseline: dict, history: list[dict]) -> dict:
+def propose_fix(scene: dict, baseline: dict, history: list[dict], budget_gbp: float | None = None) -> dict:
     """Argon proposes ONE canopy or tree. It sees the verifier's verdicts on earlier attempts."""
     system = ("You design shade for bus stops. Propose one buildable canopy or tree that shades the waiting area "
               "through the whole analysis window, especially the hours the verifier says are worst. "
@@ -110,8 +111,12 @@ def propose_fix(scene: dict, baseline: dict, history: list[dict]) -> dict:
     worst = baseline.get("worst_time"), baseline.get("worst_time_sun")
     prompt = {
         "task": ("Return JSON {proposal: {id, kind: 'canopy'|'tree', shape: 'box'|'sphere', center, size or radius, "
-                 "rotation_deg, z0, z1, opacity}, rationale: one or two sentences}. "
+                 "rotation_deg, z0, z1, material}, rationale: one or two sentences}. "
+                 "material MUST be one key of material_catalogue; opacity and cost are set from it by the verifier. "
+                 "Prefer the cheapest design that passes; stay within the budget. "
                  "If earlier attempts were rejected, fix exactly what the verifier objected to."),
+        "material_catalogue": __import__("shadowstop.materials", fromlist=["CATALOGUE"]).CATALOGUE,
+        "budget_gbp": budget_gbp,
         "scene": {k: v for k, v in scene.items() if k != "proposals"},
         "current_shade_score": baseline.get("score"),
         "worst_time_and_sun": worst,
@@ -123,7 +128,7 @@ def propose_fix(scene: dict, baseline: dict, history: list[dict]) -> dict:
         try:
             prev = history[-1].get("interaction_id") if history else None
             kwargs = dict(model=MODEL, input=system + "\n\n" + json.dumps(prompt),
-                          generation_config={"thinking_level": "medium"})
+                          generation_config={"thinking_level": THINKING})
             if prev:  # keep Argon's own earlier reasoning server-side across verifier rejections
                 kwargs["previous_interaction_id"] = prev
             it = client().interactions.create(**kwargs)

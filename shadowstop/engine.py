@@ -12,6 +12,7 @@ import shapely
 from shapely.geometry import Polygon
 
 from .geometry import footprint, transmission
+from .materials import apply_material, shade_value
 from .sun import local_to_utc, sun_position, sun_vector
 
 SAMPLE_HEIGHT_M = 1.2  # torso height of a person waiting; shade is measured here
@@ -119,8 +120,10 @@ def check_constraints(scene: dict, proposal: dict) -> list[str]:
     return errs
 
 
-def evaluate(scene: dict, proposal: dict) -> dict:
-    """Score a single proposal against the scene's current state. The accept/reject verdict."""
+def evaluate(scene: dict, proposal: dict, budget_gbp: float | None = None) -> dict:
+    """Score a single proposal against the scene's current state. The accept/reject verdict.
+    Material opacity and cost come from the catalogue, never from the proposer."""
+    proposal = apply_material(proposal)
     before = score(scene)
     trial = copy.deepcopy(scene)
     trial["proposals"] = [proposal]
@@ -130,6 +133,8 @@ def evaluate(scene: dict, proposal: dict) -> dict:
     reasons = list(errs)
     if gain < MIN_GAIN:
         reasons.append(f"shade gain {gain * 100:+.0f} pts is below the +{MIN_GAIN * 100:.0f} pt bar")
+    if budget_gbp is not None and proposal["cost_gbp"] > budget_gbp:
+        reasons.append(f"indicative cost £{proposal['cost_gbp']:,.0f} is over the £{budget_gbp:,.0f} budget")
     if after["worst_time_shade"] is not None and after["worst_time_shade"] < MIN_WORST_TIME_SHADE:
         s = after["worst_time_sun"]
         reasons.append(f"at {after['worst_time']} (sun az {s['azimuth']:.0f} deg, el {s['elevation']:.0f} deg) "
@@ -137,6 +142,9 @@ def evaluate(scene: dict, proposal: dict) -> dict:
     return {
         "accepted": not reasons,
         "reasons": reasons,
+        "proposal": proposal,
+        "cost_gbp": proposal["cost_gbp"],
+        "value": shade_value(gain, proposal["cost_gbp"], proposal["life_years"]),
         "score_before": before["score"],
         "score_after": after["score"],
         "worst_time": after["worst_time"],

@@ -84,11 +84,16 @@
       <div class="score after"><div class="lbl">AFTER</div><div class="big" id="scoreAfter">--</div></div>
     </div>
     <div class="delta-row"><span id="scoreDelta" class="delta">&nbsp;</span><span id="worstTime" class="muted"></span></div>
+    <div id="bizCase" class="biz hidden"></div>
     <div class="verifier-note" id="verifierNote">Deterministic engine: sun position + ray casting.</div>
     <canvas id="chart" height="150"></canvas>
     <div class="chart-legend"><span class="sw red"></span>before <span class="sw green"></span>after</div>
 
     <h2 class="sec">Argon proposal loop</h2>
+    <div class="budget-row">
+      <label>Budget £ <input id="budgetInput" type="number" min="0" step="500" value="8000"></label>
+      <label class="nolimit"><input id="noLimit" type="checkbox"> No limit</label>
+    </div>
     <button id="proposeBtn" class="primary wide">&#10024; Ask Argon to fix it</button>
     <div id="proposeLog" class="log"></div>
     <div id="approvalBox" class="approval hidden">
