@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101c19">
+  <meta name="description" content="Find the bus stops that need shade. Design a better wait, verified by real sun geometry.">
+  <title>ShadowStop — A cooler wait.</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+  <link rel="stylesheet" href="demo.css">
+  <script defer src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <script defer src="demo.js"></script>
+</head>
+<body>
+  <div class="map-stage" aria-label="Map of Hackney, London">
+    <div id="map"></div><div id="googleMap" hidden></div><div class="map-wash"></div>
+    <div id="mapFallback" class="map-fallback" hidden>Map imagery is unavailable. The verified street demo is ready.</div>
+  </div>
+  <header class="topbar">
+    <a class="brand" href="demo.html" aria-label="ShadowStop home"><span class="brand-mark"><svg viewBox="0 0 32 32" aria-hidden="true"><path d="M5 20a11 11 0 0 1 22 0M3 24h26M16 3v3M5 8l3 3M27 8l-3 3"/></svg></span>Shadow<span>Stop</span><small>URBAN SHADE INTELLIGENCE</small></a>
+    <nav aria-label="Demo stages"><button class="nav-step active" data-stage="discover"><i>01</i> Discover</button><span class="nav-line"></span><button class="nav-step" data-stage="verify"><i>02</i> Verify</button><span class="nav-line"></span><button class="nav-step" data-stage="compare"><i>03</i> Reimagine</button></nav>
+    <a class="workbench" href="index.html">Open workbench <span>↗</span></a>
+  </header>
+  <main>
+    <aside class="story-card" id="storyCard">
+      <div class="eyebrow"><span class="status-dot"></span> BUILT FOR A WARMER LONDON</div>
+      <div id="introCopy"><h1>A cooler wait.<br><span>A better city.</span></h1><p class="intro">Some bus shelters barely shelter anyone.<br>Find the gaps. Design the shade.<br>Prove the difference.</p></div>
+      <div class="place-row"><span class="location-icon">⌖</span><div><strong id="stopName">Hackney Town Hall</strong><span id="stopLocation">Mare Street · London E8</span></div><span class="stop-tag">BUS STOP</span></div>
+      <div class="metric-grid"><div><span class="metric-label">SHADE TODAY</span><strong id="beforeMetric">—<small>%</small></strong><span class="metric-caption">across the waiting area</span></div><div class="proposed-metric"><span class="metric-label">WITH OUR DESIGN</span><strong id="afterMetric">—<small>%</small></strong><span class="metric-caption" id="gainLabel">recorded verified design</span></div></div>
+      <div class="evidence-row"><span class="check-icon">✓</span><span id="evidenceLabel">Loading recorded shade study…</span><button class="info-button" id="methodBtn" aria-label="How shade is verified">i</button></div>
+      <button class="primary" id="startBtn"><span>Explore this stop</span><span>↗</span></button>
+      <div class="card-footer"><span>Sun geometry. Real constraints.</span><span>Gemini proposes. We verify.</span></div>
+    </aside>
+    <div class="map-toolbar"><div class="view-switch" aria-label="Map view"><button id="aerialBtn" class="selected">Aerial</button><button id="tilesBtn">Google 3D <span class="tiny-dot"></span></button></div><button class="icon-button" id="recenterBtn" aria-label="Recenter map">⌖</button><button class="icon-button" id="shadeBtn" aria-label="Toggle computed shade layer" aria-pressed="false">◒</button></div>
+    <div class="map-location"><span class="status-dot"></span><span id="mapLocation">HACKNEY, LONDON</span><span class="coord" id="coordinates">51.5452° N &nbsp; 0.0554° W</span></div>
+    <div id="shadeKey" class="shade-key" hidden><span class="shade-swatch"></span> Ground shade <span class="sun-swatch"></span> Direct sun <small>COMPUTED · 5 CM ABOVE GROUND</small></div>
+    <section class="site-callout" id="siteCallout" aria-label="Selected bus stop"><span class="callout-pin">◉</span><div><small>PRIORITY SITE</small><strong>Hackney Town Hall</strong><span><b id="exposureLabel">—</b> of waiting-area time in direct sun</span></div><button id="siteBtn" aria-label="Inspect Hackney Town Hall">↗</button></section>
+    <section class="verification-panel" id="verificationPanel" hidden aria-label="Design verification">
+      <div class="panel-heading"><span class="eyebrow">THE DESIGN PROCESS</span><button id="closeVerify" class="close-button" aria-label="Close verification">×</button></div>
+      <h2>Good intentions.<br><span>Better evidence.</span></h2><p>A solid roof isn’t enough. The verifier tests every design through the whole day.</p>
+      <div id="attempts" class="attempts"></div>
+      <div class="design-summary"><div><small>INDICATIVE INVESTMENT</small><strong id="designCost">—</strong></div><div><small>MATERIAL</small><span id="designMaterial">Tensioned shade sail</span></div></div>
+      <button class="primary" id="compareBtn"><span>See the difference</span><span>→</span></button>
+      <button class="text-button" id="liveBtn">Run a new Gemini design ↗</button><span class="live-status" id="liveStatus"></span>
+    </section>
+    <button class="street-card" id="streetBtn"><img src="assets/hackney_mare_street.jpg" alt="Historic street photograph of Mare Street and Hackney Empire"><span class="street-overlay"><small>FROM THE MAP TO THE STREET</small><strong>A place. A practical change. <i>↗</i></strong></span></button>
+    <section class="sun-control" aria-label="Sun and shade timeline">
+      <div class="sun-title"><span class="sun-symbol">☀</span><div><strong>A day in the sun</strong><span>19 JUL 2026 · BST</span></div><span class="study-pill">SUMMER STUDY</span></div>
+      <div class="timeline-row"><button id="playBtn" class="play-button" aria-label="Play sun timeline">▶</button><output id="timeValue" for="timeSlider">14:00</output><div class="slider-wrap"><input id="timeSlider" type="range" min="0" max="36" value="20" aria-label="Time of day"><div class="time-ticks"><span>09:00</span><span>12:00</span><span>15:00</span><span>18:00</span></div></div><div class="instant-shade"><strong id="instantShade">—</strong><span>shade at this time</span></div></div>
+      <div class="sun-footer"><span id="sunPosition">Sun position loading</span><div class="before-after"><button id="beforeBtn" class="selected">Today</button><button id="afterBtn">Proposed</button></div></div>
+    </section>
+    <div class="bottom-note"><span>Designed for people. Checked by geometry.</span><span id="dataMode">RECORDED STUDY</span></div>
+  </main>
+  <dialog id="compareDialog" class="compare-dialog">
+    <div class="compare-heading"><div><span class="eyebrow">A SMALL CHANGE. A BETTER WAIT.</span><h2>The street, reimagined.</h2></div><button class="close-button" id="closeCompare" aria-label="Close comparison">×</button></div>
+    <div class="photo-compare" id="photoCompare"><img id="photoBefore" src="assets/hackney_mare_street.jpg" alt="Original Mare Street photograph"><div class="after-photo" id="afterPhoto"><img id="photoAfter" src="assets/hackney_mare_street_after.jpg" alt="AI illustration of the proposed shade sail"></div><span class="photo-label left">EXISTING STREET</span><span class="photo-label right">AI DESIGN ILLUSTRATION</span><div class="wipe-line" id="wipeLine"><span>↔</span></div><input id="compareSlider" type="range" min="0" max="100" value="50" aria-label="Drag to compare existing street and AI illustration"></div>
+    <div class="compare-results"><div><span>Verified daily shade</span><strong><b id="compareBefore">—</b><i>→</i><b id="compareAfter">—</b></strong></div><div><span>Indicative cost</span><strong id="compareCost">—</strong></div><button class="primary" id="briefBtn">Review council brief ↗</button></div>
+    <p class="photo-credit">Historic source photo: Cjc13, Wikimedia Commons, 2009 · CC BY-SA 3.0. Proposed view: AI illustration, not a real installation. Shade numbers come from geometry; the image is illustrative.</p>
+  </dialog>
+  <dialog class="method-dialog" id="methodDialog"><button class="close-button" id="closeMethod" aria-label="Close methodology">×</button><span class="eyebrow">TRANSPARENT BY DESIGN</span><h2>Gemini proposes.<br>The verifier decides.</h2><p>We sample the waiting area every 0.5 metres, at 1.2 metres above the pavement. At 15-minute intervals, rays follow the computed sun direction through buildings, trees, glass and the proposed canopy.</p><ol><li>At least +25 percentage points of daily shade.</li><li id="worstRule">At least 40% shade at the worst time in the peak-heat window.</li><li>Inside the buildable area, within the £8,000 budget, with geometry and clearance checks.</li></ol><p class="small-print">This is direct-sun shading, not air temperature or UV protection. OSM building heights and foliage can be estimates. Passing the geometric checks is not structural or planning approval. The recorded attempt history used the original full-day gate; the final design is rechecked against the current rules.</p><div class="google-context"><strong>Google Maps context</strong><p id="googleStatus">Checking optional Google integration…</p><button id="solarBtn" class="secondary">Check building solar context ↗</button><div id="solarResult"></div></div></dialog>
+  <dialog class="method-dialog" id="briefDialog"><button class="close-button" id="closeBrief" aria-label="Close council brief">×</button><span class="eyebrow">OPERATOR REVIEW</span><h2>A considered next step.</h2><div id="briefContent"></div><label class="approve-row"><input type="checkbox" id="approveCheck"> I have reviewed the design and its limitations.</label><button id="exportBtn" class="primary" disabled>Export council brief ↓</button><p class="small-print">Concept brief only. Subject to site survey, accessibility review, structural design and planning approval.</p></dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>

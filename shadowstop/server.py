@@ -288,12 +288,15 @@ def verified_demo():
     verdict = engine.evaluate(base, scene["proposals"][-1], budget_gbp=8000)
     return {"source": "Recorded Gemini proposal, reverified locally", "scene": scene,
             "verdict": verdict, "before": engine.score(base),
-            "after": engine.score(scene, include_proposals=True)}
+            "after": engine.score(scene, include_proposals=True),
+            "rules": {"min_gain": engine.MIN_GAIN,
+                      "min_worst_time_shade": engine.MIN_WORST_TIME_SHADE,
+                      "peak_heat_hours": list(getattr(engine, "PEAK_HEAT_HOURS", (9, 18)))}}
 
 
 @app.get("/")
 def polished_demo():
-    return RedirectResponse("/story.html")
+    return RedirectResponse("/demo.html")
 
 
 app.mount("/scenes", StaticFiles(directory=ROOT / "scenes"), name="scenes")
