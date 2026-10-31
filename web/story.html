@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ShadowStop Story</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<style>.maplibregl-ctrl-attrib { font-size: 12px !important; background: rgba(0,0,0,.45) !important; color: #ddd !important; } .maplibregl-ctrl-attrib a { color: #ddd !important; }</style>
+<style>
+  :root { --hot: #ff3b2f; --cool: #2f86ff; --ink: #11151a; --muted: #6b7682; --gold: #ffb340; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; font-family: Inter, system-ui, sans-serif; color: #fff; }
+  #stage { position: absolute; left: 50%; top: 50%; width: 1920px; height: 1080px; transform-origin: 0 0; overflow: hidden; background: #07090c; }
+  .layer { position: absolute; inset: 0; }
+  #map { z-index: 1; background: #0b0f14; }
+  .leaflet-control-attribution { font-size: 12px !important; background: rgba(0,0,0,.45) !important; color: #ddd !important; }
+  .leaflet-control-attribution a { color: #ddd !important; }
+  #sweep { z-index: 3; pointer-events: none; opacity: 0; }
+  #sweep .bar { position: absolute; top: 0; bottom: 0; width: 260px; left: -300px;
+    background: linear-gradient(90deg, transparent, rgba(255,179,64,.08) 60%, rgba(255,210,120,.55) 97%, rgba(255,255,255,.9)); }
+  .dot { width: 14px; height: 14px; border-radius: 50%; background: var(--hot); box-shadow: 0 0 0 0 rgba(255,59,47,.7); animation: pulse 1.6s infinite; }
+  .dot.amber { background: var(--gold); box-shadow: 0 0 0 0 rgba(255,179,64,.7); }
+  @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(255,80,50,.7); } 70% { box-shadow: 0 0 0 18px rgba(255,80,50,0); } 100% { box-shadow: 0 0 0 0 rgba(255,80,50,0); } }
+  .hero-dot { width: 26px; height: 26px; border-radius: 50%; background: var(--hot); border: 4px solid #fff; box-shadow: 0 0 30px rgba(255,59,47,.9); animation: pulse 1.2s infinite; }
+  .pin { width: 64px; height: 84px; }
+  #photo { z-index: 2; opacity: 0; overflow: hidden; }
+  #photoInner { position: absolute; transform-origin: 50% 55%; }
+  #photoInner img { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #pAfter { clip-path: inset(0 0 100% 0); }
+  #sunTint { position: absolute; inset: 0; opacity: 0; mix-blend-mode: soft-light; pointer-events: none;
+    background: radial-gradient(ellipse at var(--sx, 50%) var(--sy, 10%), rgba(255,214,120,1) 0%, rgba(255,150,40,.85) 35%, rgba(255,110,20,.35) 70%, rgba(255,90,0,.15) 100%); }
+  #sunWash { position: absolute; inset: 0; opacity: 0; pointer-events: none; mix-blend-mode: screen;
+    background: radial-gradient(ellipse at var(--sx, 50%) var(--sy, 10%), rgba(255,200,110,.55), rgba(255,160,60,0) 60%); }
+  #area { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  #shine { position: absolute; left: 0; right: 0; height: 160px; top: -160px; pointer-events: none; opacity: 0;
+    background: linear-gradient(180deg, rgba(255,255,255,0), rgba(255,255,255,.55) 85%, rgba(255,255,255,.95)); mix-blend-mode: screen; }
+  #vignette { z-index: 4; pointer-events: none; background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.55) 100%); }
+  #flash { z-index: 20; background: #fff; opacity: 0; pointer-events: none; }
+
+  .title { position: absolute; z-index: 10; left: 0; right: 0; text-align: center; font-weight: 800; letter-spacing: -1.5px;
+    text-shadow: 0 4px 30px rgba(0,0,0,.6); opacity: 0; }
+  #title { top: 90px; font-size: 68px; line-height: 1.1; padding: 0 160px; }
+  #subtitle { top: 200px; font-size: 34px; font-weight: 600; letter-spacing: -.5px; color: #ffe2b0; }
+  #counter { position: absolute; z-index: 10; left: 80px; bottom: 80px; font-size: 30px; font-weight: 600; opacity: 0;
+    background: rgba(8,10,14,.65); padding: 16px 26px; border-radius: 16px; backdrop-filter: blur(8px); }
+  #counter b { font-size: 44px; font-weight: 900; font-variant-numeric: tabular-nums; color: var(--gold); margin-left: 8px; }
+  #worst { position: absolute; z-index: 10; left: 50%; bottom: 90px; transform: translateX(-50%); opacity: 0;
+    background: #fff; color: var(--ink); border-radius: 22px; padding: 22px 38px; box-shadow: 0 30px 80px rgba(0,0,0,.5); text-align: center; white-space: nowrap; }
+  #worst .k { font-size: 18px; font-weight: 800; letter-spacing: 3px; text-transform: uppercase; color: var(--hot); }
+  #worst .n { font-size: 50px; font-weight: 900; letter-spacing: -1.5px; }
+
+  .tag { position: absolute; z-index: 10; left: 70px; top: 60px; opacity: 0; display: flex; align-items: center; gap: 18px; }
+  .tag .pill { font-size: 22px; font-weight: 900; letter-spacing: 3px; padding: 10px 20px; border-radius: 12px; }
+  .tag .pill.before { background: var(--hot); } .tag .pill.after { background: #18b26b; }
+  .tag .txt { font-size: 34px; font-weight: 700; text-shadow: 0 3px 20px rgba(0,0,0,.7); }
+  #clock { position: absolute; z-index: 10; left: 70px; bottom: 60px; font-size: 150px; font-weight: 900; letter-spacing: -6px;
+    font-variant-numeric: tabular-nums; text-shadow: 0 6px 40px rgba(0,0,0,.6); opacity: 0; line-height: 1; }
+
+  .card { background: #fff; color: var(--ink); border-radius: 26px; box-shadow: 0 30px 90px rgba(0,0,0,.45); }
+  #hud { position: absolute; z-index: 10; right: 70px; top: 50%; transform: translateY(-50%); width: 430px; padding: 30px 34px; opacity: 0; }
+  #hud .k { font-size: 15px; font-weight: 800; letter-spacing: 2.5px; text-transform: uppercase; color: var(--muted); }
+  #hud .big { font-size: 112px; font-weight: 900; letter-spacing: -5px; line-height: 1; font-variant-numeric: tabular-nums; margin: 6px 0 2px; }
+  #hud .lbl { font-size: 20px; font-weight: 600; color: #333b44; }
+  #hud .row { border-top: 1px solid #e7eaee; margin-top: 18px; padding-top: 16px; }
+  #hud .tot { font-size: 40px; font-weight: 900; letter-spacing: -1px; font-variant-numeric: tabular-nums; }
+  #hud svg { display: block; margin: 6px auto 0; }
+
+  #hold { position: absolute; z-index: 11; left: 50%; top: 50%; transform: translate(-50%, -50%); text-align: center; padding: 40px 70px; opacity: 0; white-space: nowrap; }
+  #hold .n { font-size: 120px; font-weight: 900; letter-spacing: -6px; line-height: 1; }
+  #hold .l { font-size: 34px; font-weight: 700; color: #333b44; }
+
+  #attempts { position: absolute; z-index: 11; right: 90px; top: 250px; width: 900px; display: flex; flex-direction: column; gap: 22px; }
+  .att { position: relative; padding: 24px 30px 24px 34px; opacity: 0; display: flex; gap: 26px; align-items: center; }
+  .att .n { font-size: 16px; font-weight: 800; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; }
+  .att .r { font-size: 26px; font-weight: 600; line-height: 1.25; margin-top: 4px; }
+  .att .m { font-size: 22px; color: #333b44; margin-top: 6px; }
+  .att .stamp { flex: none; font-size: 30px; font-weight: 900; letter-spacing: 3px; padding: 10px 18px; border: 5px solid; border-radius: 12px; transform: rotate(-8deg); }
+  .att .stamp.bad { color: var(--hot); border-color: var(--hot); }
+  .att .stamp.ok { color: #12a35f; border-color: #12a35f; }
+  #scrim { z-index: 5; background: linear-gradient(90deg, rgba(5,7,10,.25), rgba(5,7,10,.75)); opacity: 0; pointer-events: none; }
+
+  #install { position: absolute; z-index: 11; left: 50%; bottom: 90px; transform: translateX(-50%); padding: 22px 40px; opacity: 0; white-space: nowrap; text-align: center; }
+  #install .k { font-size: 16px; font-weight: 800; letter-spacing: 3px; text-transform: uppercase; color: #12a35f; }
+  #install .n { font-size: 46px; font-weight: 900; letter-spacing: -1px; }
+
+  #post { position: absolute; z-index: 12; left: 50%; top: 50%; width: 1460px; transform: translate(-50%, -50%); padding: 48px 60px 34px; opacity: 0; }
+  #post .head { display: flex; justify-content: space-between; align-items: baseline; }
+  #post .kick { font-size: 18px; font-weight: 800; letter-spacing: 3px; text-transform: uppercase; color: #ff6a2b; }
+  #post .stop { font-size: 52px; font-weight: 900; letter-spacing: -2px; margin: 4px 0 26px; }
+  #post .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
+  .stat { background: #f4f6f8; border-radius: 18px; padding: 22px 26px; }
+  .stat .l { font-size: 18px; font-weight: 600; color: #4a535d; min-height: 46px; }
+  .stat .v { font-size: 58px; font-weight: 900; letter-spacing: -2px; font-variant-numeric: tabular-nums; line-height: 1.1; white-space: nowrap; }
+  .stat .v .from { color: var(--hot); } .stat .v .to { color: #12a35f; } .stat .v .ar { color: #b4bcc5; font-weight: 700; margin: 0 8px; }
+  .stat.hero { background: #11151a; color: #fff; } .stat.hero .l { color: #aab4bf; }
+  #post .ctx { font-size: 17px; color: var(--muted); margin-top: 22px; line-height: 1.45; }
+  #post .foot { font-size: 14px; color: #8a949e; margin-top: 16px; border-top: 1px solid #e7eaee; padding-top: 14px; }
+  #end { position: absolute; z-index: 13; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; opacity: 0; background: radial-gradient(ellipse at center, #141c26, #05070a); }
+  #end .logo { font-size: 110px; font-weight: 900; letter-spacing: -4px; } #end .logo b { color: #ff7a3d; }
+  #end .tl { font-size: 44px; font-weight: 600; color: #cfd8e2; margin-top: 10px; letter-spacing: -.5px; }
+  #end .sun { font-size: 90px; color: #ffd23f; }
+
+  #playBtn { position: absolute; z-index: 30; left: 50%; top: 70%; transform: translate(-50%, -50%); font: 800 46px Inter, sans-serif; color: #11151a;
+    background: #fff; border: none; border-radius: 999px; padding: 26px 64px; cursor: pointer; box-shadow: 0 20px 70px rgba(0,0,0,.6); }
+  #playBtn small { display: block; font-size: 18px; font-weight: 600; color: #6b7682; margin-top: 4px; }
+  #replayBtn { position: fixed; z-index: 40; right: 14px; bottom: 12px; font: 600 13px Inter, sans-serif; color: #ccd; background: rgba(255,255,255,.08);
+    border: 1px solid rgba(255,255,255,.2); border-radius: 8px; padding: 6px 12px; cursor: pointer; opacity: .5; }
+  #replayBtn:hover { opacity: 1; }
+  #err { position: absolute; z-index: 50; left: 50%; top: 50%; transform: translate(-50%, -50%); padding: 40px 50px; font-size: 26px; display: none; max-width: 1100px; }
+  #intro { z-index: 9; display: flex; align-items: center; justify-content: center; flex-direction: column; background: radial-gradient(ellipse at center, #141c26, #05070a); }
+  #intro .logo { font-size: 96px; font-weight: 900; letter-spacing: -4px; } #intro .logo b { color: #ff7a3d; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="map" class="layer"></div>
+  <div id="sweep" class="layer"><div class="bar"></div></div>
+  <div id="photo" class="layer">
+    <div id="photoInner">
+      <img id="pBefore" alt="">
+      <img id="pAfter" alt="">
+      <div id="sunTint"></div>
+      <div id="sunWash"></div>
+      <svg id="area" viewBox="0 0 1 1" preserveAspectRatio="none">
+        <defs><filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="0.012" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+        <polygon id="areaPoly" points="" fill="rgba(255,59,47,.5)" stroke="#fff" stroke-width="0.003" filter="url(#glow)" opacity="0"/>
+      </svg>
+      <div id="shine"></div>
+    </div>
+  </div>
+  <div id="vignette" class="layer"></div>
+  <div id="scrim" class="layer"></div>
+
+  <div id="title" class="title"></div>
+  <div id="subtitle" class="title"></div>
+  <div id="counter" style="display:none"><b id="counterN"></b></div>
+  <div id="worst"><div class="k">Worst shade found</div><div class="n" id="worstName"></div></div>
+
+  <div id="tag" class="tag"><span class="pill before" id="tagPill">BEFORE</span><span class="txt" id="tagTxt"></span></div>
+  <div id="clock">09:00</div>
+  <div id="hud" class="card">
+    <div class="k">Waiting area in direct sun</div>
+    <div class="big" id="hudPct">0%</div>
+    <svg id="arc" width="300" height="120" viewBox="0 0 300 120">
+      <path d="M20 110 A130 100 0 0 1 280 110" fill="none" stroke="#e3e7eb" stroke-width="4" stroke-dasharray="6 7"/>
+      <line x1="10" y1="110" x2="290" y2="110" stroke="#cfd5db" stroke-width="2"/>
+      <circle id="arcSun" cx="20" cy="110" r="14" fill="#ffb340" stroke="#fff" stroke-width="3"/>
+      <text id="arcEl" x="150" y="80" text-anchor="middle" font-size="16" font-weight="700" fill="#6b7682">sun 0°</text>
+    </svg>
+    <div class="row">
+      <div class="lbl">Direct sun on people waiting today</div>
+      <div class="tot" id="hudTot">0 h 00 m</div>
+    </div>
+  </div>
+  <div id="hold" class="card"><div class="n" id="holdN"></div><div class="l" id="holdL"></div></div>
+  <div id="attempts"></div>
+  <div id="install" class="card"><div class="k">Installing the verified design</div><div class="n" id="installN"></div></div>
+  <div id="post" class="card"></div>
+  <div id="end"><div class="sun">&#9728;</div><div class="logo">Shadow<b>Stop</b></div><div class="tl">Shade that's proven to work.</div></div>
+  <div id="intro" class="layer"><div class="logo">Shadow<b>Stop</b></div></div>
+  <div id="flash" class="layer"></div>
+  <button id="playBtn">&#9654; Play<small>space = play / pause</small></button>
+  <div id="err" class="card"></div>
+</div>
+<button id="replayBtn" title="Restart">&#8635; Replay</button>
+<script src="story.js"></script>
+</body>
+</html>
