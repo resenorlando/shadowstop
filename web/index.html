@@ -63,6 +63,17 @@
         <div class="now-shade"><span class="lbl">Shade now</span> <span id="nowShade">--</span></div>
         <div id="modeBadge" class="mode-badge after">AFTER</div>
       </div>
+      <div id="diagCard" class="diag hidden" title="Click to enlarge / dock">
+        <canvas id="diagMap" width="512" height="512"></canvas>
+        <div class="diag-body">
+          <div class="diag-kicker">ShadowStop diagnosis</div>
+          <div id="diagName" class="diag-name"></div>
+          <div id="diagSun" class="diag-sun"></div>
+          <div id="diagWorst" class="diag-worst"></div>
+          <div id="diagAfter" class="diag-after hidden"></div>
+        </div>
+      </div>
+      <div id="satAttr" class="sat-attr hidden">Imagery © Esri, Maxar, Earthstar Geographics</div>
       <div id="legend" class="legend">
         <span>daily shade</span><div class="grad"></div><span class="l0">0%</span><span class="l1">100%</span>
       </div>

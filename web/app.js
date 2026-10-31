@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { scoreScene } from './engine.js';
+import { satelliteCanvas, ESRI_URL, ESRI_ATTR } from './sat.js';
 
 // ---------------------------------------------------------------- utilities
 const $ = (id) => document.getElementById(id);
@@ -165,7 +166,8 @@ let sceneRadius = 30;
 const meshById = new Map();
 
 const MAT = {
-  building: () => new THREE.MeshStandardMaterial({ color: 0x9aa1ab, roughness: 0.95 }),
+  // semi-transparent so the real rooftops in the aerial imagery show through; still casts shadows
+  building: () => new THREE.MeshStandardMaterial({ color: 0xe4e8ee, roughness: 0.9, transparent: true, opacity: 0.35, depthWrite: false }),
   glass: () => new THREE.MeshStandardMaterial({ color: 0x6fc3ff, transparent: true, opacity: 0.28, roughness: 0.1, metalness: 0.1, depthWrite: false }),
   shelter_roof: () => new THREE.MeshStandardMaterial({ color: 0x6b7480, roughness: 0.6 }),
   wall: () => new THREE.MeshStandardMaterial({ color: 0x4a525c, roughness: 0.7 }),
@@ -234,6 +236,11 @@ function buildOccluder(o, isProposal = false) {
   mesh.castShadow = (o.opacity ?? 1) >= 0.3; // clear glass must not throw a hard shadow
   mesh.receiveShadow = (o.opacity ?? 1) >= 0.3;
   grp.add(mesh);
+  if (o.kind === 'building' && !isProposal) {
+    const edges = new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry, 20), new THREE.LineBasicMaterial({ color: 0xf2f5f8, transparent: true, opacity: 0.85 }));
+    edges.position.copy(mesh.position); edges.rotation.copy(mesh.rotation);
+    grp.add(edges);
+  }
   if (isProposal) {
     const edges = new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry, 30), new THREE.LineBasicMaterial({ color: 0xffd23f }));
     edges.position.copy(mesh.position); edges.rotation.copy(mesh.rotation);
@@ -300,7 +307,89 @@ function buildScene3D() {
   cam.updateProjectionMatrix();
   northLabel.position.copy(toThree(0, Math.min(sceneRadius - 2, 22), 0.6));
   updateHeatmap();
+  loadSatGround(s);
 }
+
+// ---------------------------------------------------------------- real aerial ground (Esri World Imagery)
+const SAT_HALF = 60; // metres each side of the stop
+const satGround = new THREE.Mesh(new THREE.PlaneGeometry(SAT_HALF * 2, SAT_HALF * 2),
+  new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1 }));
+satGround.rotation.x = -Math.PI / 2;
+satGround.position.y = 0.002;
+satGround.receiveShadow = true;
+satGround.visible = false;
+scene3.add(satGround);
+const satCache = new Map();
+async function loadSatGround(s) {
+  satGround.visible = false; road.visible = pavement.visible = true;
+  $('satAttr').classList.add('hidden');
+  if (s.lat == null || s.lon == null) return;
+  const key = `${s.lat},${s.lon}`;
+  try {
+    if (!satCache.has(key)) satCache.set(key, satelliteCanvas(s.lat, s.lon, SAT_HALF, 19, 2048));
+    const cv = await satCache.get(key);
+    if (!cv) { satCache.delete(key); return; }
+    if (state.scene !== s) return;
+    const tex = new THREE.CanvasTexture(cv);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    satGround.material.map?.dispose?.();
+    satGround.material.map = tex; satGround.material.needsUpdate = true;
+    satGround.visible = true; road.visible = pavement.visible = false;
+    $('satAttr').classList.remove('hidden');
+  } catch (e) { console.warn('satellite ground failed', e); satCache.delete(key); }
+}
+
+// ---------------------------------------------------------------- patio-style diagnosis card
+const diag = { sceneKey: null, crop: null, shownFor: null };
+async function updateDiag() {
+  const s = state.scene, card = $('diagCard');
+  if (!s || !state.before) { card.classList.add('hidden'); return; }
+  const key = `${s.id}|${s.lat},${s.lon}`;
+  if (diag.sceneKey !== key) {
+    diag.sceneKey = key; diag.crop = null;
+    // zoom 19: Esri returns "Map data not yet available" placeholders at z20 in parts of London
+    satelliteCanvas(s.lat, s.lon, 20, 19, 512).then((cv) => { if (diag.sceneKey === key) { diag.crop = cv; drawDiagMap(); } }).catch(() => {});
+  }
+  const b = scoreOf(state.before);
+  const worst = state.before.worst_time;
+  const wb = worst ? state.before.by_time?.find((x) => x.t === worst) : null;
+  $('diagName').textContent = s.name || s.id;
+  $('diagSun').innerHTML = `Waiting area in direct sun <b class="hot">${Math.round(100 - b * 100)}%</b> of the day`;
+  $('diagWorst').innerHTML = worst ? `Worst: <b>${esc(worst)}</b>, ${wb ? Math.round(wb.shade * 100) : '--'}% shaded` : '';
+  const acc = state.accepted;
+  const a = scoreOf(state.after) ?? scoreOf(acc?.score_after);
+  $('diagAfter').innerHTML = acc && a != null ? `With verified design: <b class="cool">${pct(a)}</b> shaded${acc.cost_gbp != null ? ` • <b>£${Number(acc.cost_gbp).toLocaleString('en-GB')}</b> indicative` : ''}` : '';
+  $('diagAfter').classList.toggle('hidden', !(acc && a != null));
+  card.classList.remove('hidden');
+  drawDiagMap();
+  if (diag.shownFor !== key) { // first show: big postcard for 4 s, then dock
+    diag.shownFor = key;
+    card.classList.add('big');
+    clearTimeout(diag.timer);
+    diag.timer = setTimeout(() => card.classList.remove('big'), 4000);
+  }
+}
+function drawDiagMap() {
+  const cv = $('diagMap'), g = cv.getContext('2d'), W = cv.width, H = cv.height, s = state.scene;
+  g.fillStyle = '#3b4048'; g.fillRect(0, 0, W, H);
+  if (diag.crop) g.drawImage(diag.crop, 0, 0, W, H);
+  if (!s) return;
+  const P = (x, y) => [((x + 20) / 40) * W, ((20 - y) / 40) * H];
+  const sc = state.before;
+  if (sc?.cells?.length) {
+    const step = sc.grid_step || 0.5, w = (step / 40) * W;
+    g.globalAlpha = 0.7;
+    for (const c of sc.cells) { const [px, py] = P(c.x, c.y); const [r, gg, bb] = heatColor(c.shade); g.fillStyle = `rgb(${r},${gg},${bb})`; g.fillRect(px - w / 2, py - w / 2, w, w); }
+    g.globalAlpha = 1;
+  }
+  if (s.waiting_area?.length >= 3) {
+    g.strokeStyle = '#ffffff'; g.lineWidth = 3; g.beginPath();
+    s.waiting_area.forEach(([x, y], i) => { const [px, py] = P(x, y); i ? g.lineTo(px, py) : g.moveTo(px, py); });
+    g.closePath(); g.stroke();
+  }
+}
+$('diagCard').addEventListener('click', () => $('diagCard').classList.toggle('big'));
 
 function setProposals3D(list, highlight, material) {
   clearGroup(propGroup);
@@ -545,6 +634,7 @@ function renderScores() {
   } else $('verifierNote').textContent = 'Deterministic engine: sun position + ray casting.';
   drawChart();
   updateNowShade();
+  updateDiag();
 }
 
 // ---------------------------------------------------------------- provenance list
@@ -569,6 +659,14 @@ function flash(id) {
 }
 
 // ---------------------------------------------------------------- scene loading
+// street-level oblique view: ~25 m back (south), ~12 m up, looking at the waiting area
+function frameCamera(scene) {
+  const wa = scene.waiting_area?.length ? scene.waiting_area : [[0, 0]];
+  const cx = wa.reduce((a, p) => a + p[0], 0) / wa.length, cy = wa.reduce((a, p) => a + p[1], 0) / wa.length;
+  controls.target.copy(toThree(cx, cy, 1.2));
+  camera.position.copy(toThree(cx + 7, cy - 24, 12));
+  controls.update();
+}
 function loadScene(scene, { keepLog = false } = {}) {
   if (!scene || !Array.isArray(scene.occluders)) { toast('Scene JSON looks invalid'); return; }
   scene.hours = scene.hours || [9, 18];
@@ -584,6 +682,7 @@ function loadScene(scene, { keepLog = false } = {}) {
   }
   $('photoResult').innerHTML = '';
   buildScene3D();
+  if (!keepLog) frameCamera(scene);
   setupSlider();
   renderOccList();
   const [h0, h1] = scene.hours;
@@ -746,6 +845,7 @@ function renderBizCase() {
 // ---------------------------------------------------------------- human-in-control approval + council brief
 function updateGate() {
   renderBizCase();
+  if (typeof diag !== 'undefined' && state.before) updateDiag();
   const acc = !!state.accepted;
   $('approvalBox').classList.toggle('hidden', !acc && !state.approved);
   $('exportBtn').disabled = !state.approved;
@@ -890,7 +990,9 @@ let stopLayer = null;
 function initMap() {
   if (!window.L) { $('map').innerHTML = '<div class="muted" style="padding:12px">Map library failed to load (offline?)</div>'; return; }
   map = L.map('map', { zoomControl: true }).setView([51.545, -0.0553], 17);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }).addTo(map);
+  const esri = L.tileLayer(ESRI_URL, { maxZoom: 20, maxNativeZoom: 19, attribution: ESRI_ATTR }).addTo(map);
+  const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' });
+  L.control.layers({ 'Satellite': esri, 'Map (OSM)': osm }, null, { position: 'topright' }).addTo(map);
   stopLayer = L.layerGroup().addTo(map);
 }
 function scoreColor(v) {
@@ -905,7 +1007,7 @@ $('scanBtn').addEventListener('click', async () => {
   busy(btn, true, 'Scanning…');
   try {
     const q = new URLSearchParams({ south: b.getSouth().toFixed(6), west: b.getWest().toFixed(6), north: b.getNorth().toFixed(6), east: b.getEast().toFixed(6) });
-    const r = await api('/api/scan?' + q, { timeout: 60000 });
+    const r = await api('/api/scan?' + q, { timeout: 150000 });
     const stops = (r.stops || []).slice().sort((a, b) => (a.score ?? 1) - (b.score ?? 1));
     stopLayer.clearLayers();
     for (const s of stops) {
