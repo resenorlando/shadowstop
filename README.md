@@ -8,7 +8,7 @@ On a heatwave day, people waiting for a bus stand in full sun, often under a "sh
 
 [![tests](https://github.com/resenorlando/shadowstop/actions/workflows/tests.yml/badge.svg)](https://github.com/resenorlando/shadowstop/actions/workflows/tests.yml)
 
-> **Hackney Town Hall** (a real stop, built from OpenStreetMap), July day: **14%** of the waiting area is shaded. The "obvious fix" (a solid roof) is **rejected** by the verifier: +14 pts only, and at 09:00 (sun az 99°, el 34°) **0%** of the waiting area is shaded. Argon's first shade sail is rejected at 18:00 (13% shaded); its redesign, made from that counterexample, is **accepted: 14% → 77%** for £3,350 (indicative) under an £8,000 budget.
+> **Hackney Town Hall** (a real stop, built from OpenStreetMap), July day: **14%** of the waiting area is shaded. The "obvious fix" (a solid roof) is **rejected** by the verifier: +14 pts only, and at 15:30 (sun az 236°, el 49°) only **24%** of the waiting area is shaded. Argon's first shade sail is rejected at 18:00 (13% shaded); its redesign, made from that counterexample, is **accepted: 14% → 77%** for £3,350 (indicative) under an £8,000 budget.
 >
 > The before score and the rejection (same reason string, same 37 quarter-hour values) are re-computed from `scenes/hackney_town_hall.json` by `tests/test_api.py`, and the accepted 77% (all 37 quarter-hour values) from `scenes/hackney_accepted.json` by `tests/test_hackney_accepted.py`; the Argon attempts are the recorded run in `web/assets/hero.json`. Synthetic demo scene: 14% before, obvious fix rejected at 11:45 (17% shaded), stored canopy accepted at 88%.
 

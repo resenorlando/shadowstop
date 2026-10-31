@@ -224,9 +224,9 @@ def _stamp(base, text, color, cx, cy, p, angle=-9):
 
 ATTEMPTS = [
     dict(n="#1", who="obvious fix", design="opaque metal roof", cost="£4,290",
-         ok=False, t="09:00", az=99, el=34, shade="0%",
-         why="+14 pts is below the +25 pt bar · 09:00 sun slips under the roof",
-         banner="REJECTED · 09:00 · sun az 99° el 34° · 0% shaded"),
+         ok=False, t="15:30", az=236, el=49, shade="24%",
+         why="+14 pts is below the +25 pt bar · 15:30 sun slips under the roof",
+         banner="REJECTED · 15:30 · sun az 236° el 49° · 24% shaded"),
     dict(n="#2", who="Argon", design="tensioned shade sail", cost="£3,360",
          ok=False, t="18:00", az=271, el=26, shade="13%",
          why="low western sun at 18:00 reaches the waiting area",
@@ -261,11 +261,12 @@ def _beat_verify(i, p):
     if at["ok"]:
         fillw = bw * sweep
     else:
-        stop_frac = 0.0 if at["t"] == "09:00" else 1.0
-        fillw = bw * max(sweep, 0.02) if stop_frac == 1.0 else bw * min(sweep, 0.02)
+        hh, mm = map(int, at["t"].split(":"))
+        stop_frac = min(1.0, max(0.0, (hh * 60 + mm - 540) / 540))  # position in 09:00-18:00
+        fillw = bw * max(0.02, min(sweep, stop_frac))
     d.rectangle((bx, by, bx + fillw, by + 14), fill=col if sweep >= 1 else CYAN)
     if not at["ok"] and sweep >= 1:
-        mx = bx + (0 if at["t"] == "09:00" else bw)
+        mx = bx + bw * stop_frac
         d.polygon(((mx - 9, by - 14), (mx + 9, by - 14), (mx, by - 2)), fill=RED)
         _txt(d, (mx, by + 40), at["t"], F_MONO_B, RED, "mm")
     # right: sky dome with counterexample sun
@@ -527,7 +528,7 @@ def _build_log():
         (9.2, "engine.score  14% shaded · 7.7 h direct sun"),
         (9.45, "argon.propose #1 opaque metal roof  £4,290"),
         (10.2, "verify        sweep 37 sun positions"),
-        (10.9, "verify   #1   REJECTED 09:00 az 99 el 34 -> 0%"),
+        (10.9, "verify   #1   REJECTED 15:30 az 236 el 49 -> 24%"),
         (11.3, "verify   #1   +14 pts < +25 pt bar"),
         (12.25, "argon.propose #2 tensioned shade sail  £3,360"),
         (12.6, "argon         previous_interaction_id chained"),
@@ -552,7 +553,7 @@ CAPTIONS = {
     "scan": "Scanning 17 Hackney bus stops from OpenStreetMap",
     "photo": "Argon reads the street photo, corrects the 3D scene",
     "heat": "Sun ray-cast every 15 min: 14% shaded",
-    "v0": "Obvious metal roof: REJECTED, 0% shaded at 09:00",
+    "v0": "Obvious metal roof: REJECTED, 24% shaded at 15:30",
     "v1": "Argon's shade sail: REJECTED, 13% at 18:00",
     "v2": "Redesign ACCEPTED: 77% shaded, £3,350 indicative",
     "approve": "Officer approves; council brief exported",
@@ -629,7 +630,7 @@ def story(t):
         n = int(kind[1])
         hit = p > 0.42
         if n == 0:
-            state["badge"] = ("0", "% shaded at 09:00 (design #1)", 0.0) if hit else ("14", "% of waiting area shaded", 0.14)
+            state["badge"] = ("24", "% shaded at 15:30 (design #1)", 0.24) if hit else ("14", "% of waiting area shaded", 0.14)
         elif n == 1:
             state["badge"] = ("13", "% shaded at 18:00 (design #2)", 0.13) if hit else ("14", "% of waiting area shaded", 0.14)
         else:

@@ -168,7 +168,7 @@ LOG = [
     (2.85, "D", "osm-469771287 · 51.5452, -0.0554", DIM),
     (3.30, "WARN", f"shaded {STATS['shade_before_pct']}% of waiting area", RED),
     (3.55, "WARN", f"direct sun {STATS['sun_hours_before']} h / day", RED),
-    (3.80, "WARN", "09:00 · sun az 99° el 34° · 0% shaded", RED),
+    (3.80, "WARN", "obvious roof fails at 15:30 · sun az 236° el 49°", RED),
     (4.60, "INFO", "photo · Mare Street · waiting area", CYAN),
     (5.40, "INFO", "handing to argon · budget £8,000", CYAN),
 ]
