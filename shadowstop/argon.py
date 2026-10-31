@@ -173,11 +173,18 @@ def render_fix(image: tuple[bytes, str], scene: dict, proposal: dict) -> tuple[b
                 f"crown from {proposal.get('z0', 3):.1f} m to {proposal.get('z1', 7):.1f} m high")
     else:
         w, d = proposal.get("size", [6, 2.5])
-        what = (f"a solid, opaque bus-stop canopy roughly {w:.1f} m long and {d:.1f} m deep, "
-                f"its underside about {proposal.get('z0', 2.6):.1f} m above the pavement")
+        looks = {
+            "shade_fabric": "an off-white tensioned shade-sail fabric canopy on slim steel masts, gently angled",
+            "opaque_metal_roof": "a slim reflective light-grey metal roof canopy on dark steel posts",
+            "solar_polycarbonate": "a tinted bronze solar-control polycarbonate canopy on slim steel posts",
+            "clear_polycarbonate": "a clear polycarbonate canopy on slim steel posts",
+        }
+        look = looks.get(proposal.get("material"), "a slim bus-stop canopy on steel posts")
+        what = (f"{look}, roughly {w:.1f} m long and {d:.1f} m deep, its underside about "
+                f"{proposal.get('z0', 2.6):.1f} m above the pavement, over the waiting area by the bus shelter")
     prompt = (f"Edit this photo of a real bus stop. Add {what}, placed as described: "
               f"{proposal.get('note') or 'over the area where people wait'}. "
-              "Use a simple, realistic street-furniture style (dark steel posts, matte panel roof). "
+              "Make it look like real, well-built London street furniture at the correct scale relative to the existing shelter and bench. "
               "Keep everything else in the photo exactly the same: same camera, buildings, people, light. "
               "Do not add text or labels.")
     r = client().models.generate_content(
