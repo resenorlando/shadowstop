@@ -45,7 +45,8 @@ def score(req: ScoreReq):
 
 @app.get("/api/scene/demo")
 def scene_demo():
-    return json.loads((ROOT / "scenes" / "demo.json").read_text(encoding="utf-8"))
+    # Real stop (OSM buildings line up with the satellite ground); the synthetic scene stays at /scenes/demo.json
+    return json.loads((ROOT / "scenes" / "hackney_town_hall.json").read_text(encoding="utf-8"))
 
 
 @app.get("/api/scene/from_osm")
@@ -62,6 +63,16 @@ def scan(south: float, west: float, north: float, east: float, limit: int = 40):
         return {"stops": osm.scan(south, west, north, east, limit)}
     except Exception as e:
         raise HTTPException(502, f"Scan failed: {e}")
+
+
+@app.get("/api/geocode")
+def geocode(q: str):
+    try:
+        return osm.geocode_london(q)
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+    except Exception as e:
+        raise HTTPException(502, f"Geocode failed: {e}")
 
 
 class ProposeReq(BaseModel):
