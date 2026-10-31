@@ -32,3 +32,13 @@ def test_hackney_accepted_reproduces_recorded_output():
     assert [r["shade"] for r in after["by_time"]] == [r["shade"] for r in hero["after"]["by_time"]]
     assert prop["material"] == hero["design"]["material"]
     assert prop["size"] == hero["design"]["size"]
+
+
+def test_hackney_accepted_file_scores_as_recorded_without_evaluate():
+    """The live app loads this file and scores it with /api/score (engine.score, no apply_material).
+    The proposal must therefore carry its catalogue opacity, or the after-score reads 88% instead of 77%."""
+    scene, hero = _load()
+    after = engine.score(scene, include_proposals=True)
+    assert after["score"] == hero["after"]["score"] == 0.7655
+    before = engine.score(dict(scene, proposals=[]))
+    assert before["score"] == hero["before"]["score"]

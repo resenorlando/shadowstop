@@ -1,0 +1,105 @@
+{
+ "source": "GET /api/scan?south=51.5425&west=-0.0600&north=51.5475&east=-0.0500&limit=25 (OSM bus stops; fast baseline shade score from engine.py)",
+ "stops": [
+  {
+   "id": "osm-469771287",
+   "osm_id": 469771287,
+   "lat": 51.5452115,
+   "lon": -0.0554389,
+   "name": "Hackney Town Hall",
+   "shelter": "yes",
+   "bench": "yes",
+   "score": 0.1167
+  },
+  {
+   "id": "osm-469787971",
+   "osm_id": 469787971,
+   "lat": 51.5435053,
+   "lon": -0.0567234,
+   "name": "Martello Street",
+   "shelter": "yes",
+   "bench": "yes",
+   "score": 0.1654
+  },
+  {
+   "id": "osm-469774491",
+   "osm_id": 469774491,
+   "lat": 51.5467142,
+   "lon": -0.0557773,
+   "name": "Hackney Central / Mare Street",
+   "shelter": "yes",
+   "bench": "yes",
+   "score": 0.1821
+  },
+  {
+   "id": "osm-469771271",
+   "osm_id": 469771271,
+   "lat": 51.546587,
+   "lon": -0.0529401,
+   "name": "Morning Lane / Trelawney Estate",
+   "shelter": "yes",
+   "bench": "yes",
+   "score": 0.25
+  },
+  {
+   "id": "osm-469771269",
+   "osm_id": 469771269,
+   "lat": 51.5459981,
+   "lon": -0.0542231,
+   "name": "Trelawney Estate",
+   "shelter": "yes",
+   "bench": "yes",
+   "score": 0.3077
+  },
+  {
+   "id": "osm-469780562",
+   "osm_id": 469780562,
+   "lat": 51.5428147,
+   "lon": -0.0551401,
+   "name": "St Thomas's Square",
+   "shelter": "yes",
+   "bench": "yes",
+   "score": 0.3083
+  },
+  {
+   "id": "osm-469771290",
+   "osm_id": 469771290,
+   "lat": 51.5452055,
+   "lon": -0.0551603,
+   "name": "Hackney Town Hall",
+   "shelter": "yes",
+   "bench": "yes",
+   "score": 0.4333
+  },
+  {
+   "id": "osm-469780561",
+   "osm_id": 469780561,
+   "lat": 51.5425161,
+   "lon": -0.055381,
+   "name": "St Thomas's Square",
+   "shelter": "yes",
+   "bench": "yes",
+   "score": 0.5542
+  },
+  {
+   "id": "osm-469774490",
+   "osm_id": 469774490,
+   "lat": 51.5465408,
+   "lon": -0.0567616,
+   "name": "Graham Road / Hackney Central",
+   "shelter": "yes",
+   "bench": "yes",
+   "score": 0.5714
+  },
+  {
+   "id": "osm-469787969",
+   "osm_id": 469787969,
+   "lat": 51.5434477,
+   "lon": -0.0563935,
+   "name": "Richmond Road / Martello Street",
+   "shelter": "yes",
+   "bench": "yes",
+   "score": 0.6654
+  }
+ ]
+}

@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ShadowStop 3D Hero</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+<style>
+  :root { --hot: #ff3b2f; --ok: #12a35f; --ink: #11151a; --muted: #6b7682; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0b0f14; font-family: Inter, system-ui, sans-serif; color: #fff; }
+  #h3d { position: absolute; inset: 0; }
+  .hud { position: absolute; z-index: 2; background: rgba(255,255,255,.94); color: var(--ink); border-radius: 16px; box-shadow: 0 14px 50px rgba(0,0,0,.35); }
+  #top { left: 18px; top: 16px; padding: 14px 20px; }
+  #top .k { font-size: 12px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); }
+  #top .n { font-size: 22px; font-weight: 800; letter-spacing: -.3px; }
+  #read { right: 18px; top: 16px; padding: 14px 20px; min-width: 250px; text-align: right; }
+  #read .big { font-size: 54px; font-weight: 900; letter-spacing: -2px; line-height: 1; font-variant-numeric: tabular-nums; }
+  #read .l { font-size: 13px; color: #333b44; font-weight: 600; }
+  #read .day { margin-top: 8px; font-size: 15px; font-weight: 700; }
+  #bar { left: 50%; bottom: 18px; transform: translateX(-50%); padding: 12px 18px; display: flex; gap: 14px; align-items: center; width: min(980px, calc(100% - 36px)); box-sizing: border-box; flex-wrap: wrap; }
+  #clock { font-size: 30px; font-weight: 900; font-variant-numeric: tabular-nums; width: 92px; }
+  #slider { flex: 1; min-width: 180px; accent-color: #ff7a3d; }
+  .seg { display: flex; border: 1px solid #d5dbe1; border-radius: 10px; overflow: hidden; }
+  .seg button, #play { font: 700 13px Inter, sans-serif; border: none; background: #fff; color: var(--ink); padding: 9px 12px; cursor: pointer; }
+  .seg button.on { background: var(--ink); color: #fff; }
+  #play { border: 1px solid #d5dbe1; border-radius: 10px; width: 44px; }
+  #sunr { font-size: 12px; color: var(--muted); width: 120px; }
+  #note { left: 18px; bottom: 96px; padding: 8px 12px; font-size: 11.5px; max-width: 520px; color: #333b44; background: rgba(255,255,255,.82); }
+  #err { display: none; left: 50%; top: 50%; transform: translate(-50%,-50%); padding: 30px; }
+  body.bare .hud { display: none !important; }
+</style>
+</head>
+<body>
+<div id="h3d"></div>
+<div id="top" class="hud"><div class="k">ShadowStop · verified scene</div><div class="n">Hackney Town Hall, Mare Street · 19 Jul 2026</div></div>
+<div id="read" class="hud"><div class="l" id="readL">Waiting area shaded at this time</div><div class="big" id="readN">--</div><div class="day" id="readDay"></div></div>
+<div id="note" class="hud">Shadows are cast by the exact verifier geometry (OSM buildings and trees, the shelter roof, the accepted 5.7 × 4.2 m shade-sail). Sun angles and every % come from engine.py (assets/hero.json). Shade is direct-sun geometry at 1.2 m, not temperature. Masts, people and bench are illustrative.</div>
+<div id="bar" class="hud">
+  <button id="play" title="Play the day (space)">&#9654;</button>
+  <div id="clock">13:00</div>
+  <input id="slider" type="range" min="0" max="36" step="1" value="16">
+  <div id="sunr">sun --</div>
+  <div class="seg" id="modes">
+    <button data-m="before">Before</button>
+    <button data-m="obvious">Obvious fix</button>
+    <button data-m="after" class="on">Verified design</button>
+    <button data-m="split">Split</button>
+  </div>
+  <div class="seg" id="views">
+    <button data-v="hero" class="on">Close</button>
+    <button data-v="compare">Wide</button>
+  </div>
+</div>
+<div id="err" class="hud"></div>
+<script type="module">
+  import './hero3d.js';
+  const $ = (id) => document.getElementById(id);
+  const P = new URLSearchParams(location.search);
+  if (P.get('bare')) document.body.classList.add('bare');
+  let H;
+  try { H = await window.H3D_READY; } catch (e) { $('err').style.display = 'block'; $('err').textContent = '3D scene failed to load: ' + e.message; throw e; }
+  const hb = H.hero;
+  let mode = P.get('mode') || 'after', hour = P.get('t') ? (([h, m]) => h + m / 60)(P.get('t').split(':').map(Number)) : 13, playing = false;
+  H.setView(P.get('view') || 'hero');
+  const pct = (v) => Math.round(v * 100) + '%';
+  function update() {
+    H.set({ hour, mode: mode === 'split' ? 'after' : mode, split: mode === 'split' ? 0.5 : null });
+    const hh = Math.floor(hour), mm = Math.round((hour - hh) * 60);
+    $('clock').textContent = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+    $('slider').value = Math.round((hour - 9) * 4);
+    const b = H.shadeAt(hour, 'before'), a = H.shadeAt(hour, 'after');
+    $('sunr').textContent = `sun az ${Math.round(b.sun_az)}° · el ${Math.round(b.sun_el)}°`;
+    if (mode === 'after') { $('readN').innerHTML = `<span style="color:var(--ok)">${pct(a.shade)}</span>`; $('readL').textContent = `Shaded at ${a.t} (verifier)`; $('readDay').innerHTML = `Whole day: <span style="color:var(--hot)">${pct(hb.before.score)}</span> → <span style="color:var(--ok)">${pct(hb.after.score)}</span>`; }
+    else if (mode === 'split') { $('readN').innerHTML = `<span style="color:var(--hot)">${pct(b.shade)}</span> → <span style="color:var(--ok)">${pct(a.shade)}</span>`; $('readL').textContent = `Shaded at ${b.t}: before → after`; $('readDay').innerHTML = `Whole day: <span style="color:var(--hot)">${pct(hb.before.score)}</span> → <span style="color:var(--ok)">${pct(hb.after.score)}</span>`; }
+    else if (mode === 'obvious') { const o = hb.attempts.find((x) => x.by === 'baseline'); $('readN').innerHTML = `<span style="color:var(--hot)">${pct(o.score_after)}</span>`; $('readL').textContent = 'Obvious fix, whole day: REJECTED'; $('readDay').textContent = '0% shaded at 09:00 (sun 34° from the east)'; }
+    else { $('readN').innerHTML = `<span style="color:var(--hot)">${pct(b.shade)}</span>`; $('readL').textContent = `Shaded at ${b.t} (verifier)`; $('readDay').innerHTML = `Whole day: <span style="color:var(--hot)">${pct(hb.before.score)}</span>`; }
+    document.querySelectorAll('#modes button').forEach((x) => x.classList.toggle('on', x.dataset.m === mode));
+  }
+  $('slider').addEventListener('input', () => { playing = false; $('play').innerHTML = '&#9654;'; hour = 9 + Number($('slider').value) / 4; update(); });
+  document.querySelectorAll('#modes button').forEach((b) => b.addEventListener('click', () => { mode = b.dataset.m; update(); }));
+  document.querySelectorAll('#views button').forEach((b) => b.addEventListener('click', () => { H.setView(b.dataset.v); document.querySelectorAll('#views button').forEach((x) => x.classList.toggle('on', x === b)); }));
+  $('play').addEventListener('click', () => { playing = !playing; $('play').innerHTML = playing ? '&#10074;&#10074;' : '&#9654;'; if (playing && hour >= 17.99) hour = 9; last = performance.now(); });
+  addEventListener('keydown', (e) => {
+    if (e.code === 'Space') { e.preventDefault(); $('play').click(); }
+    if (e.key === 'ArrowRight') { hour = Math.min(18, hour + 0.25); update(); }
+    if (e.key === 'ArrowLeft') { hour = Math.max(9, hour - 0.25); update(); }
+    if (e.key === 'b') { mode = 'before'; update(); } if (e.key === 'a') { mode = 'after'; update(); } if (e.key === 's') { mode = 'split'; update(); }
+  });
+  let last = performance.now();
+  (function tick(now) { requestAnimationFrame(tick); if (!playing) return; hour += (now - last) / 1000 * 9 / 12; last = now; if (hour > 18) { hour = 18; playing = false; $('play').innerHTML = '&#9654;'; } update(); })(last);
+  update();
+  window.heroPage = { set: (o) => { if (o.mode) mode = o.mode; if (o.hour != null) hour = o.hour; update(); } };
+</script>
+</body>
+</html>

@@ -828,7 +828,8 @@ $('replayBtn')?.addEventListener('click', async () => {
     let raw = (sceneKey && localStorage.getItem(sceneKey)) || localStorage.getItem('shadowstop:lastPropose');
     let res = raw ? JSON.parse(raw) : null;
     if (!res) {
-      res = await api('/scenes/_hero_prop.json', { timeout: 6000 });
+      try { res = await api('/scenes/_hero_prop.json', { timeout: 6000 }); }
+      catch { res = await heroReplayResponse(); } // committed files: works on a fresh checkout
       saveProposeRun(res, res?.final_scene?.id);
     }
     await playProposeResponse(res, origProps, { isReplay: true });
@@ -839,6 +840,29 @@ $('replayBtn')?.addEventListener('click', async () => {
     busy(btn, false);
   }
 });
+
+// Recorded Hackney Town Hall run rebuilt from committed files (assets/hero.json attempts + the accepted
+// scene). Scores shown after loading are re-computed by the engine via /api/score, not taken from here.
+async function heroReplayResponse() {
+  const [hero, scene] = await Promise.all([api('/assets/hero.json', { timeout: 6000 }), api('/scenes/hackney_accepted.json', { timeout: 6000 })]);
+  const roof = (scene.occluders || []).find((o) => o.kind === 'shelter_roof');
+  const obvious = roof ? { ...roof, id: 'obvious-fix', kind: 'canopy', source: 'proposal', material: 'opaque_metal_roof', opacity: 1, note: 'Obvious fix: swap the clear roof for a solid one, same size and position.' } : null;
+  const attempts = (hero.attempts || []).map((a) => ({
+    ...a,
+    score_before: hero.before?.score,
+    proposal: a.accepted ? scene.proposals : a.by === 'baseline' && obvious ? [obvious] : [],
+    worst_time: a.accepted ? hero.after?.worst_time : (String(a.reason).match(/at (\d\d:\d\d)/) || [])[1],
+  }));
+  return { attempts, final_scene: scene, budget_gbp: 8000, source: 'recorded run (assets/hero.json)' };
+}
+async function loadHackney() {
+  try {
+    const scene = await api('/scenes/hackney_accepted.json', { timeout: 8000 });
+    await loadScene(scene);
+    setMode('after');
+    toast('Hackney Town Hall: verified scene with the accepted design. Drag the time slider; B / A = before / after.', 'info');
+  } catch (e) { toast('Could not load the Hackney scene: ' + e.message); return loadDemo(); }
+}
 
 // ---------------------------------------------------------------- costs / business case
 const gbp = (v, dp = 0) => (v == null || isNaN(v) ? '--' : '£' + Number(v).toLocaleString('en-GB', { minimumFractionDigits: dp, maximumFractionDigits: dp }));
@@ -1137,7 +1161,8 @@ requestAnimationFrame(frame);
 window.addEventListener('resize', () => { drawChart(); map?.invalidateSize(); });
 
 initMap();
-loadDemo();
+// index.html?scene=hackney opens straight into the verified Hackney Town Hall scene (stage-safe start)
+if (new URLSearchParams(location.search).get('scene') === 'hackney') loadHackney(); else loadDemo();
 
 // handy for debugging on stage
 window.shadowstop = { state, loadScene, computeSun, setHour };

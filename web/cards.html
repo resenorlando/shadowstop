@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1920">
+<title>ShadowStop Backup Cards</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+<style>
+  /* Three 1920x1080 backup cards: cards.html?card=problem | intelligence | result (no param = all three, stacked). */
+  :root { --hot: #ff3b2f; --ok: #12a35f; --ink: #11151a; --muted: #6b7682; --bg: #0c1117; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #000; font-family: Inter, system-ui, sans-serif; color: #fff; }
+  .card { position: relative; width: 1920px; height: 1080px; overflow: hidden; background: var(--bg); display: none; }
+  body.all .card, .card.on { display: block; }
+  .brand { position: absolute; left: 64px; bottom: 44px; font-size: 30px; font-weight: 900; letter-spacing: -1px; } .brand b { color: #ff7a3d; }
+  .foot { position: absolute; right: 64px; bottom: 48px; font-size: 16px; color: #8592a0; max-width: 1150px; text-align: right; line-height: 1.4; }
+  .kick { font-size: 20px; font-weight: 800; letter-spacing: 4px; text-transform: uppercase; color: #ffb340; }
+  h1 { font-size: 64px; font-weight: 900; letter-spacing: -2px; margin: 10px 0 0; line-height: 1.05; }
+  .pill { display: inline-block; font-size: 18px; font-weight: 900; letter-spacing: 3px; padding: 7px 14px; border-radius: 10px; }
+  .pill.bad { background: var(--hot); } .pill.ok { background: #18b26b; }
+  img.shot { display: block; width: 100%; height: 100%; object-fit: cover; }
+
+  /* problem */
+  #problem .photo { position: absolute; left: 0; top: 0; width: 1100px; height: 1080px; overflow: hidden; }
+  #problem .photo img { position: absolute; height: 100%; left: -270px; }
+  #problem .photo svg { position: absolute; height: 100%; left: -270px; top: 0; }
+  #problem .photo .cap { position: absolute; left: 24px; bottom: 20px; font-size: 14px; color: #fff; text-shadow: 0 1px 4px #000; }
+  #problem .right { position: absolute; left: 1100px; top: 0; right: 0; bottom: 0; padding: 70px 70px; }
+  #problem .big { font-size: 200px; font-weight: 900; letter-spacing: -10px; color: var(--hot); line-height: .95; margin-top: 18px; }
+  #problem .brand { left: auto; right: 70px; bottom: 40px; }
+  #problem .lbl { font-size: 34px; font-weight: 700; line-height: 1.25; }
+  #problem .facts { margin-top: 22px; font-size: 24px; line-height: 1.5; color: #cdd6df; }
+  #problem .facts b { color: #fff; }
+  #problem .mini { position: absolute; left: 70px; right: 70px; bottom: 110px; height: 230px; border-radius: 18px; overflow: hidden; }
+
+  /* intelligence */
+  #intelligence .head { position: absolute; left: 64px; top: 56px; right: 64px; }
+  #intelligence .cols { position: absolute; left: 64px; right: 64px; top: 250px; height: 680px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 40px; }
+  .col { background: #fff; color: var(--ink); border-radius: 24px; overflow: hidden; display: flex; flex-direction: column; position: relative; }
+  .col .img { height: 430px; background: #222; }
+  .col .body { padding: 22px 28px; }
+  .col .n { font-size: 16px; font-weight: 800; letter-spacing: 2.5px; text-transform: uppercase; color: var(--muted); }
+  .col .d { font-size: 30px; font-weight: 800; letter-spacing: -.6px; margin: 6px 0 10px; line-height: 1.15; }
+  .col .why { font-size: 22px; line-height: 1.35; color: #2b333c; font-weight: 600; }
+  .col .why b { color: var(--hot); } .col .why b.ok { color: var(--ok); }
+  .col .stamp { position: absolute; right: 22px; top: 22px; font-size: 26px; font-weight: 900; letter-spacing: 3px; padding: 6px 14px; border: 5px solid; border-radius: 12px; transform: rotate(-7deg); background: rgba(255,255,255,.92); }
+  .stamp.bad { color: var(--hot); border-color: var(--hot); } .stamp.ok { color: var(--ok); border-color: var(--ok); }
+  .col .cap { position: absolute; left: 14px; top: 390px; font-size: 14px; font-weight: 700; color: #fff; background: rgba(0,0,0,.55); padding: 4px 10px; border-radius: 8px; }
+  .arrow { position: absolute; top: 450px; font-size: 64px; color: #ffb340; font-weight: 900; z-index: 2; }
+
+  /* result */
+  #result .sbs { position: absolute; left: 0; top: 0; width: 1920px; height: 760px; }
+  #result .sbs .div { position: absolute; left: 959px; top: 0; bottom: 0; width: 3px; background: #fff; }
+  #result .sbs .lab { position: absolute; top: 30px; width: 960px; text-align: center; }
+  #result .sbs .lab .w { font-size: 26px; font-weight: 700; margin-top: 8px; text-shadow: 0 2px 12px rgba(0,0,0,.8); }
+  #result .bottom { position: absolute; left: 64px; right: 64px; top: 790px; display: flex; align-items: center; gap: 60px; }
+  #result .num { font-size: 150px; font-weight: 900; letter-spacing: -7px; line-height: 1; white-space: nowrap; }
+  #result .num .a { color: var(--hot); } #result .num .b { color: #2ee68a; } #result .num .ar { color: #6b7682; margin: 0 14px; font-weight: 700; }
+  #result .txt { font-size: 28px; font-weight: 700; line-height: 1.3; }
+  #result .cost { font-size: 64px; font-weight: 900; letter-spacing: -2px; white-space: nowrap; }
+  #result .cost small { display: block; font-size: 20px; letter-spacing: 0; color: #9aa6b2; font-weight: 600; }
+  #result .illu { position: absolute; right: 24px; top: 530px; width: 300px; border: 4px solid #fff; border-radius: 14px; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,.6); background: #fff; }
+  #result .illu img { display: block; width: 100%; }
+  #result .illu div { color: var(--ink); font-size: 13px; font-weight: 700; padding: 6px 10px; line-height: 1.3; }
+
+  #h3d { position: fixed; left: -5000px; top: 0; width: 900px; height: 600px; }
+</style>
+</head>
+<body>
+<div id="h3d" data-manual="1" data-pr="1" data-preserve="1"></div>
+
+<section class="card" id="problem">
+  <div class="photo"><img id="pPhoto" alt="Hackney Town Hall bus stop, Mare Street"><svg id="pSvg" viewBox="0 0 1 1" preserveAspectRatio="none"><polygon id="pPoly" fill="rgba(255,59,47,.5)" stroke="#fff" stroke-width="0.003"/></svg><div class="cap" id="pCap"></div></div>
+  <div class="right">
+    <div class="kick">The problem · a real London stop</div>
+    <h1 id="pName">Hackney Town Hall bus stop</h1>
+    <div class="big" id="pBig">14%</div>
+    <div class="lbl">of waiting time in shade on a July heatwave day<br><span style="color:#9aa6b2;font-size:26px">19 July 2026, 09:00–18:00, waiting area at 1.2 m</span></div>
+    <div class="facts" id="pFacts"></div>
+    <div class="mini"><img class="shot" id="pShot" alt="3D reconstruction at 09:00"></div>
+  </div>
+  <div class="brand">Shadow<b>Stop</b></div>
+</section>
+
+<section class="card" id="intelligence">
+  <div class="head"><div class="kick">The intelligence · Gemini 4 Argon proposes, an independent verifier decides</div>
+    <h1>Every design is tested against the real sun.<br>Rejections go back to Argon with the exact failing time.</h1></div>
+  <div class="cols">
+    <div class="col"><div class="img"><img class="shot" id="i1" alt=""></div><div class="cap">09:00 · sun 34° from the east</div><div class="stamp bad">REJECTED</div>
+      <div class="body"><div class="n">Attempt 1 · obvious fix</div><div class="d" id="i1d"></div><div class="why" id="i1w"></div></div></div>
+    <div class="col"><div class="img"><img class="shot" id="i2" alt=""></div><div class="cap">Counterexample: the stop at 18:00 · sun 26° from the west</div><div class="stamp bad">REJECTED</div>
+      <div class="body"><div class="n">Attempt 2 · Gemini 4 Argon</div><div class="d" id="i2d"></div><div class="why" id="i2w"></div></div></div>
+    <div class="col"><div class="img"><img class="shot" id="i3" alt=""></div><div class="cap">Accepted design · 13:00</div><div class="stamp ok">ACCEPTED</div>
+      <div class="body"><div class="n">Attempt 3 · Argon redesign</div><div class="d" id="i3d"></div><div class="why" id="i3w"></div></div></div>
+  </div>
+  <div class="arrow" style="left:622px">→</div><div class="arrow" style="left:1257px">→</div>
+  <div class="brand">Shadow<b>Stop</b></div>
+  <div class="foot">Verifier: NOAA sun position, ray casting over a 0.5 m grid every 15 min, buildability, cost and budget rules. Deterministic: no model sets any number. Attempt 2's geometry was not saved; its panel shows the existing stop at the counterexample time.</div>
+</section>
+
+<section class="card" id="result">
+  <div class="sbs"><img class="shot" id="rShot" alt="Same camera, same sun: before and after">
+    <div class="div"></div>
+    <div class="lab" style="left:0"><span class="pill bad">BEFORE</span><div class="w">Existing glass shelter</div></div>
+    <div class="lab" style="left:960px"><span class="pill ok">AFTER</span><div class="w">Argon's verified shade-sail</div></div>
+  </div>
+  <div class="illu"><img id="rIllu" alt=""><div>Architectural illustration of the verified design (Nano Banana 2.1). Not a photograph.</div></div>
+  <div class="bottom">
+    <div class="num"><span class="a" id="rA">14%</span><span class="ar">→</span><span class="b" id="rB">77%</span></div>
+    <div class="txt">of waiting time in shade<br><span style="color:#9aa6b2;font-size:22px;font-weight:600">Same scene, same camera, same sun (10:00 shown). Whole day 09:00–18:00, verified.</span></div>
+    <div class="cost" id="rCost">£3,350<small>indicative cost · shade-sail</small></div>
+  </div>
+  <div class="brand">Shadow<b>Stop</b></div>
+  <div class="foot">Shade = share of waiting-area time out of direct sun at 1.2 m (geometry, not temperature). Costs indicative. 3D: OpenStreetMap buildings and trees; shelter and design exactly as verified; masts and people illustrative.</div>
+</section>
+
+<script type="module">
+  import './hero3d.js';
+  const $ = (id) => document.getElementById(id);
+  const P = new URLSearchParams(location.search);
+  const which = P.get('card');
+  if (which) $(which).classList.add('on'); else document.body.classList.add('all');
+  const X = await window.H3D_READY;
+  const H = X.hero;
+  const pct = (v) => Math.round(v * 100) + '%';
+  const gbp = (v) => '£' + Number(v).toLocaleString('en-GB', { maximumFractionDigits: 0 });
+  const host = $('h3d');
+  function shot(w, h, set, view) {
+    host.style.width = w + 'px'; host.style.height = h + 'px'; X.resize();
+    X.set({ split: null, sbs: false, build: 1, waGlow: 1, ...set }); X.setView(view);
+    X.render();
+    return X.renderer.domElement.toDataURL('image/jpeg', 0.92);
+  }
+  const atts = H.attempts, ob = atts.find((a) => a.by === 'baseline'), ar = atts.find((a) => a.by === 'argon' && !a.accepted), ac = [...atts].reverse().find((a) => a.accepted);
+  const bS = H.stats?.shade_before_pct ?? Math.round(H.before.score * 100), aS = H.stats?.shade_after_pct ?? Math.round(H.after.score * 100);
+  const cost = H.design?.cost_gbp ?? ac.cost_gbp;
+
+  // problem
+  $('pPhoto').src = H.photo_before; $('pCap').textContent = 'Real photo: ' + H.photo_credit;
+  await new Promise((r) => { $('pPhoto').onload = r; $('pPhoto').onerror = r; });
+  const pw = $('pPhoto').getBoundingClientRect().width; $('pSvg').style.width = pw + 'px';
+  $('pPoly').setAttribute('points', (H.waiting_area_px || []).map((p) => p.join(',')).join(' '));
+  $('pName').textContent = `${H.stop.name} bus stop`; $('pBig').textContent = bS + '%';
+  const zeroLate = H.before.by_time.filter((b) => b.shade === 0 && b.t >= '17:00');
+  $('pFacts').innerHTML = `<b>0%</b> shaded at 09:00 and from ${zeroLate[0]?.t ?? '17:15'} to 18:00<br>Glass-roofed shelter (roof modelled at 50% opacity)<br>Worst in our scan of 10 Hackney stops`;
+  $('pShot').src = shot(640, 230, { mode: 'before', hour: 9 }, { px: -6, py: -9, pz: 5, tx: 0, ty: 0.3, tz: 0.6, fov: 42 });
+
+  // intelligence
+  $('i1d').textContent = `Make the roof solid metal · ${gbp(ob.cost_gbp)}`;
+  $('i1w').innerHTML = `At <b>09:00</b> the shadow falls behind the shelter: <b>0%</b> shaded. Whole day ${pct(ob.score_after)}: below the +25-point bar.`;
+  $('i2d').textContent = `Shade-sail · ${gbp(ar.cost_gbp)}`;
+  $('i2w').innerHTML = `At <b>18:00</b> low western sun slides under it: only <b>13%</b> shaded. Counterexample returned to Argon.`;
+  $('i3d').textContent = `Shade-sail ${H.design.size.join(' × ')} m, angled for low sun · ${gbp(ac.cost_gbp)}`;
+  $('i3w').innerHTML = `Passes every check. Whole day <b class="ok">${pct(ac.score_after)}</b> shaded, within the £8,000 budget.`;
+  const colV = { px: 6.5, py: -11, pz: 6.5, tx: -0.4, ty: 0.2, tz: 0.6, fov: 42 };
+  $('i1').src = shot(580, 430, { mode: 'obvious', hour: 9 }, colV);
+  $('i2').src = shot(580, 430, { mode: 'before', hour: 18 }, colV);
+  $('i3').src = shot(580, 430, { mode: 'after', hour: 13 }, { px: -7, py: -12, pz: 4.2, tx: 0.3, ty: 0.8, tz: 1.3, fov: 40 });
+
+  // result
+  $('rA').textContent = bS + '%'; $('rB').textContent = aS + '%'; $('rCost').firstChild.textContent = gbp(cost);
+  $('rShot').src = shot(1920, 760, { mode: 'after', hour: 10, sbs: true }, { px: 6.5, py: -12.5, pz: 8.2, tx: -0.4, ty: 0.4, tz: 0.6, fov: 46 });
+  $('rIllu').src = H.photo_after;
+  await new Promise((r) => { $('rIllu').onload = r; $('rIllu').onerror = r; });
+  window.CARDS_READY = true;
+</script>
+</body>
+</html>

@@ -11,7 +11,8 @@
     "gsap": "3.12.5",
     "leaflet": "1.9.4",
     "maplibre-gl": "4.7.1",
-    "playwright": "^1.48.0"
+    "playwright": "^1.48.0",
+    "three": "0.160.0"
   },
   "private": true
 }

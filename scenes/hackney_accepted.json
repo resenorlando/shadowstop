@@ -1457,6 +1457,7 @@
    "z0": 2.3,
    "z1": 3.0,
    "material": "shade_fabric",
+   "opacity": 0.85,
    "source": "proposal",
    "note": "Recovered geometry (see top-level note)."
   }

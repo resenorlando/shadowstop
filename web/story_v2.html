@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ShadowStop Film</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+<style>
+  :root { --hot: #ff3b2f; --ok: #12a35f; --okb: #2ee68a; --ink: #11151a; --muted: #6b7682; --gold: #ffb340; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; font-family: Inter, system-ui, sans-serif; color: #fff; }
+  #stage { position: absolute; left: 50%; top: 50%; width: 1920px; height: 1080px; overflow: hidden; background: #07090c; }
+  .layer { position: absolute; inset: 0; }
+  .maplibregl-ctrl-attrib { font-size: 12px !important; background: rgba(0,0,0,.45) !important; color: #ddd !important; }
+  .maplibregl-ctrl-attrib a { color: #ddd !important; }
+  #map { z-index: 1; opacity: 0; background: #0b0f14; }
+  #photo { z-index: 2; opacity: 0; overflow: hidden; }
+  #photoInner { position: absolute; transform-origin: 50% 62%; }
+  #photoInner img { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #area { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  #h3d { z-index: 3; opacity: 0; }
+  #vignette { z-index: 4; pointer-events: none; background: radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,.45) 100%); }
+  #scrim { z-index: 5; pointer-events: none; opacity: 0; background: linear-gradient(90deg, rgba(5,7,10,.72), rgba(5,7,10,.35) 30%, rgba(5,7,10,0) 45%); }
+  #topfade { z-index: 6; pointer-events: none; background: linear-gradient(180deg, rgba(0,0,0,.62) 0, rgba(0,0,0,.3) 16%, rgba(0,0,0,0) 30%); }
+  #flash { z-index: 20; background: #fff; opacity: 0; pointer-events: none; }
+
+  .title { position: absolute; z-index: 10; left: 0; right: 0; text-align: center; font-weight: 800; letter-spacing: -1.5px; text-shadow: 0 4px 30px rgba(0,0,0,.65); opacity: 0; }
+  #title { top: 70px; font-size: 64px; line-height: 1.1; padding: 0 140px; }
+  #subtitle { top: 158px; font-size: 32px; font-weight: 600; letter-spacing: -.4px; color: #ffe2b0; padding: 0 140px; }
+  .chip { position: absolute; z-index: 10; padding: 10px 18px; border-radius: 12px; font-weight: 800; font-size: 24px; background: rgba(8,10,14,.72); backdrop-filter: blur(6px); opacity: 0; white-space: nowrap; }
+  #waLabel { color: #fff; border: 2px solid var(--hot); }
+  #credit { position: absolute; z-index: 10; right: 22px; bottom: 16px; font-size: 14px; color: rgba(255,255,255,.75); opacity: 0; text-shadow: 0 1px 4px #000; }
+
+  .card { background: #fff; color: var(--ink); border-radius: 24px; box-shadow: 0 30px 90px rgba(0,0,0,.45); }
+  .tag { position: absolute; z-index: 10; left: 64px; top: 56px; opacity: 0; display: flex; align-items: center; gap: 16px; }
+  .tag .pill { font-size: 22px; font-weight: 900; letter-spacing: 3px; padding: 10px 20px; border-radius: 12px; }
+  .pill.before { background: var(--hot); } .pill.after { background: #18b26b; } .pill.obv { background: #59606a; }
+  .tag .txt { font-size: 34px; font-weight: 700; text-shadow: 0 3px 20px rgba(0,0,0,.7); }
+  #clock { position: absolute; z-index: 10; left: 64px; bottom: 56px; font-size: 132px; font-weight: 900; letter-spacing: -5px; font-variant-numeric: tabular-nums; text-shadow: 0 6px 40px rgba(0,0,0,.6); opacity: 0; line-height: 1; }
+  #clock small { display: block; font-size: 22px; letter-spacing: 0; font-weight: 700; color: #ffe2b0; margin-bottom: 8px; }
+  #hud { position: absolute; z-index: 10; right: 64px; bottom: 56px; width: 440px; padding: 26px 32px; opacity: 0; }
+  #hud .k { font-size: 15px; font-weight: 800; letter-spacing: 2.5px; text-transform: uppercase; color: var(--muted); }
+  #hud .big { font-size: 110px; font-weight: 900; letter-spacing: -5px; line-height: 1; font-variant-numeric: tabular-nums; margin: 8px 0 4px; }
+  #hud .lbl { font-size: 18px; font-weight: 600; color: #4a535d; }
+  #hud .bar { height: 12px; background: #eceff2; border-radius: 6px; overflow: hidden; margin-top: 14px; }
+  #hud .bar i { display: block; height: 100%; width: 0; background: var(--hot); border-radius: 6px; }
+
+  #hold { position: absolute; z-index: 11; left: 50%; top: 50%; transform: translate(-50%, -50%); text-align: center; padding: 40px 70px; opacity: 0; white-space: nowrap; }
+  #hold .k { font-size: 18px; font-weight: 800; letter-spacing: 3px; text-transform: uppercase; color: var(--muted); }
+  #hold .n { font-size: 120px; font-weight: 900; letter-spacing: -6px; line-height: 1.05; }
+  #hold .l { font-size: 30px; font-weight: 700; color: #333b44; }
+
+  #att { position: absolute; z-index: 11; right: 64px; bottom: 60px; width: 780px; padding: 30px 36px 26px; opacity: 0; }
+  #att .n { font-size: 17px; font-weight: 800; letter-spacing: 2.5px; color: var(--muted); text-transform: uppercase; }
+  #att .d { font-size: 34px; font-weight: 800; letter-spacing: -.8px; margin: 8px 0 12px; line-height: 1.15; }
+  #att .why { font-size: 24px; line-height: 1.35; color: #2b333c; font-weight: 600; }
+  #att .why b { color: var(--hot); }
+  #att .src { font-size: 16px; color: var(--muted); margin-top: 16px; }
+  #att .stamp { position: absolute; right: 26px; top: -30px; background: #fff; font-size: 32px; font-weight: 900; letter-spacing: 3px; padding: 8px 16px; border: 5px solid; border-radius: 12px; transform: rotate(-7deg); }
+  .stamp.bad { color: var(--hot); border-color: var(--hot); } .stamp.ok { color: var(--ok); border-color: var(--ok); }
+  #loop { position: absolute; z-index: 11; left: 72px; top: 50%; transform: translateY(-50%); width: 560px; opacity: 0; font-size: 26px; font-weight: 700; line-height: 1.35; text-shadow: 0 3px 20px rgba(0,0,0,.8); }
+  #loop .k { font-size: 17px; letter-spacing: 3px; text-transform: uppercase; color: #ffe2b0; font-weight: 800; margin-bottom: 10px; }
+  #loop ol { margin: 0; padding-left: 34px; } #loop li { margin: 6px 0; opacity: .55; } #loop li.on { opacity: 1; }
+
+  #sbs { position: absolute; inset: 0; z-index: 9; opacity: 0; pointer-events: none; }
+  #sbs .div { position: absolute; left: 959px; top: 0; bottom: 0; width: 3px; background: #fff; box-shadow: 0 0 20px rgba(0,0,0,.5); }
+  #sbs .side { position: absolute; top: 40px; width: 960px; text-align: center; }
+  #sbs .side.l { left: 0; } #sbs .side.r { left: 960px; }
+  #sbs .pill { display: inline-block; font-size: 22px; font-weight: 900; letter-spacing: 3px; padding: 9px 18px; border-radius: 12px; }
+  #sbs .what { font-size: 26px; font-weight: 700; margin-top: 10px; text-shadow: 0 3px 16px rgba(0,0,0,.8); }
+  #sbs .now { display: inline-block; margin-top: 14px; font-size: 64px; font-weight: 900; letter-spacing: -2px; font-variant-numeric: tabular-nums; background: rgba(255,255,255,.94); color: var(--ink); border-radius: 18px; padding: 4px 26px; }
+  #sbs .now small { font-size: 20px; letter-spacing: 0; font-weight: 700; color: var(--muted); margin-left: 8px; }
+  #sbsClock { position: absolute; left: 50%; bottom: 40px; transform: translateX(-50%); font-size: 30px; font-weight: 800; background: rgba(8,10,14,.75); padding: 8px 20px; border-radius: 12px; font-variant-numeric: tabular-nums; }
+  #headline { position: absolute; z-index: 12; left: 50%; bottom: 120px; transform: translateX(-50%); padding: 26px 56px 22px; opacity: 0; text-align: center; white-space: nowrap; }
+  #headline .v { font-size: 116px; font-weight: 900; letter-spacing: -5px; line-height: 1; font-variant-numeric: tabular-nums; }
+  #headline .v .a { color: var(--hot); } #headline .v .b { color: var(--ok); } #headline .v .ar { color: #b4bcc5; font-weight: 700; margin: 0 16px; }
+  #headline .l { font-size: 24px; font-weight: 700; color: #333b44; margin-top: 6px; }
+  #headline .f { font-size: 15px; color: var(--muted); margin-top: 8px; }
+
+  #finale { position: absolute; z-index: 12; left: 64px; bottom: 56px; padding: 26px 36px; opacity: 0; max-width: 940px; }
+  #finale .k { font-size: 16px; font-weight: 800; letter-spacing: 3px; text-transform: uppercase; color: var(--ok); }
+  #finale .s { font-size: 46px; font-weight: 900; letter-spacing: -1.5px; margin: 4px 0 10px; }
+  #finale .row { display: flex; gap: 40px; align-items: baseline; }
+  #finale .big { font-size: 84px; font-weight: 900; letter-spacing: -4px; font-variant-numeric: tabular-nums; line-height: 1; }
+  #finale .big .a { color: var(--hot); } #finale .big .b { color: var(--ok); } #finale .big .ar { color: #b4bcc5; margin: 0 10px; font-weight: 700; }
+  #finale .cost { font-size: 52px; font-weight: 900; letter-spacing: -1.5px; }
+  #finale .cost small { display: block; font-size: 18px; letter-spacing: 0; font-weight: 600; color: var(--muted); }
+  #finale .f { font-size: 15px; color: var(--muted); margin-top: 14px; max-width: 900px; line-height: 1.4; }
+  #end { position: absolute; z-index: 13; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; opacity: 0; background: radial-gradient(ellipse at center, rgba(20,28,38,.92), rgba(5,7,10,.97)); }
+  #end .sun { font-size: 84px; color: #ffd23f; line-height: 1; }
+  #end .logo { font-size: 120px; font-weight: 900; letter-spacing: -4px; } #end .logo b { color: #ff7a3d; }
+  #end .tl { font-size: 42px; font-weight: 600; color: #cfd8e2; margin-top: 6px; letter-spacing: -.5px; }
+  #end .by { font-size: 22px; color: #8a96a3; margin-top: 30px; }
+  #end .fine { position: absolute; bottom: 34px; left: 0; right: 0; text-align: center; font-size: 15px; color: #7c8794; padding: 0 120px; line-height: 1.45; }
+
+  #playBtn { position: absolute; z-index: 30; left: 50%; top: 50%; transform: translate(-50%, -50%); font: 800 46px Inter, sans-serif; color: #11151a;
+    background: #fff; border: none; border-radius: 999px; padding: 26px 64px; cursor: pointer; box-shadow: 0 20px 70px rgba(0,0,0,.6); }
+  #playBtn small { display: block; font-size: 18px; font-weight: 600; color: #6b7682; margin-top: 4px; }
+  #playBtn:disabled { opacity: .6; cursor: progress; }
+  #replayBtn { position: fixed; z-index: 40; right: 14px; bottom: 12px; font: 600 13px Inter, sans-serif; color: #ccd; background: rgba(255,255,255,.08);
+    border: 1px solid rgba(255,255,255,.2); border-radius: 8px; padding: 6px 12px; cursor: pointer; opacity: .4; }
+  #err { position: absolute; z-index: 50; left: 50%; top: 50%; transform: translate(-50%, -50%); padding: 40px 50px; font-size: 26px; display: none; max-width: 1100px; }
+  body.rec #replayBtn, body.rec #playBtn { display: none; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="map" class="layer"></div>
+  <div id="photo" class="layer">
+    <div id="photoInner">
+      <img id="pBefore" alt="Mare Street at Hackney Town Hall">
+      <svg id="area" viewBox="0 0 1 1" preserveAspectRatio="none">
+        <polygon id="areaPoly" points="" fill="rgba(255,59,47,.45)" stroke="#fff" stroke-width="0.0025" opacity="0"/>
+      </svg>
+    </div>
+  </div>
+  <div id="h3d" class="layer" data-manual="1" data-pr="1"></div>
+  <div id="vignette" class="layer"></div>
+  <div id="scrim" class="layer"></div>
+  <div id="topfade" class="layer"></div>
+
+  <div id="title" class="title"></div>
+  <div id="subtitle" class="title"></div>
+  <div id="waLabel" class="chip">Waiting area</div>
+  <div id="credit"></div>
+
+  <div id="tag" class="tag"><span class="pill before" id="tagPill">BEFORE</span><span class="txt" id="tagTxt"></span></div>
+  <div id="clock"><small>19 July 2026 · Hackney</small><span id="clockT">09:00</span></div>
+  <div id="hud" class="card">
+    <div class="k" id="hudK">Waiting area in shade now</div>
+    <div class="big" id="hudPct">0%</div>
+    <div class="lbl" id="hudLbl">computed by the verifier · sun az 0° el 0°</div>
+    <div class="bar"><i id="hudBar"></i></div>
+  </div>
+  <div id="hold" class="card"><div class="k" id="holdK"></div><div class="n" id="holdN"></div><div class="l" id="holdL"></div></div>
+  <div id="loop"><div class="k">The design loop</div><ol><li id="l1">Gemini 4 Argon proposes a design</li><li id="l2">The verifier traces the real sun, every 15 min</li><li id="l3">Rejected? The exact failing time goes back to Argon</li></ol></div>
+  <div id="att" class="card"></div>
+  <div id="sbs">
+    <div class="div"></div>
+    <div class="side l"><span class="pill before" style="background:var(--hot)">BEFORE</span><div class="what">Existing glass shelter</div><div class="now"><span id="sbsB">0%</span><small>shaded now</small></div></div>
+    <div class="side r"><span class="pill after" style="background:#18b26b">AFTER</span><div class="what">Argon's verified shade-sail</div><div class="now"><span id="sbsA">0%</span><small>shaded now</small></div></div>
+    <div id="sbsClock">09:00 · same camera · same sun</div>
+  </div>
+  <div id="headline" class="card"><div class="v"><span class="a" id="hA">14%</span><span class="ar">→</span><span class="b" id="hB">77%</span></div><div class="l">of waiting time in shade, 09:00–18:00, on a July heatwave day</div><div class="f">Verified by ShadowStop's sun-geometry engine: 37 sun positions × the whole waiting area at 1.2 m</div></div>
+  <div id="finale" class="card"></div>
+  <div id="end"><div class="sun">&#9728;</div><div class="logo">Shadow<b>Stop</b></div><div class="tl">Shade that's proven to work.</div><div class="by">Designed by Gemini 4 Argon · accepted only by a deterministic sun-geometry verifier</div>
+    <div class="fine" id="fine"></div></div>
+  <div id="flash" class="layer"></div>
+  <button id="playBtn" disabled>Loading…<small>space = play / pause</small></button>
+  <div id="err" class="card"></div>
+</div>
+<button id="replayBtn" title="Restart">&#8635; Replay</button>
+<script type="module" src="hero3d.js"></script>
+<script src="story_v2.js"></script>
+</body>
+</html>

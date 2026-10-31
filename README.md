@@ -66,11 +66,13 @@ Tests (known-answer checks of the sun and the geometry):
 python -m pytest -q
 ```
 
-**Demo film:** open http://localhost:8000/story_v1.html and press Play (space pauses). It runs 55 s at 1920×1080 on the real Hackney Town Hall data in `web/assets/hero.json`. The interactive version is at http://localhost:8000/story.html. To record the film to MP4 (needs internet for the map tiles and the server running):
+**Demo film (v2, 55 s, 1920×1080):** open http://localhost:8000/story_v2.html and press Play (space pauses). It is built around the real 3D scene of Hackney Town Hall (`web/hero3d.js`): the sun moves through the scored day and the shadows are cast by the exact verifier geometry. Every number comes from `web/assets/hero.json` (engine output, re-checked by `tests/test_hackney_accepted.py`). The earlier photo-based film is still at `story_v1.html`. To record it to MP4 (server running; satellite tiles need internet, and without them the fly-in uses the 3D reconstruction):
 ```bash
 cd showcase-tools && npm install && npx playwright install chromium && node record.js
 ```
-Output: `showcase-tools/out/shadowstop_demo.mp4`.
+Output: `showcase-tools/out/shadowstop_demo.mp4` plus `qa_*.jpg` stills. It renders frame by frame on a virtual clock, so it is smooth on any laptop (`SOFTWARE_GL=1` without a GPU).
+
+**Interactive 3D hero scene:** http://localhost:8000/hero3d.html: drag the time slider, Before / Obvious fix / Verified design / Split. **Live app straight into the verified Hackney scene:** http://localhost:8000/index.html?scene=hackney. **Backup cards:** `docs/cards/{problem,intelligence,result}.png` (regenerate from `web/cards.html?card=…` with `node showcase-tools/snap.js`). Stage runbook: `docs/STAGE_RUNBOOK.md`.
 
 ## Deploy
 ```bash
