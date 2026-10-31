@@ -13,10 +13,12 @@ from pydantic import BaseModel
 from shapely.geometry import Polygon
 
 from . import argon, engine, osm
+from .google_maps import router as google_maps_router
 from .sun import local_to_utc, sun_position, sun_vector
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 app = FastAPI(title="ShadowStop")
+app.include_router(google_maps_router)
 MAX_ARGON_ATTEMPTS = 3
 
 
@@ -140,12 +142,19 @@ def propose(req: ProposeReq):
     budget = req.budget_gbp
     attempts = [_attempt(scene, _obvious_fix(scene), "baseline", budget)]
     argon_error = None
+    ref = engine.search_best_canopy(scene)  # the verifier's own brute-force optimiser (a tool Argon can consult)
     if req.use_argon:
         history = [{"proposal": attempts[0]["proposal"], "verdict": attempts[0]["reason"],
                     "shade_after": attempts[0]["score_after"]}]
-        for _ in range(MAX_ARGON_ATTEMPTS):
+        for k in range(MAX_ARGON_ATTEMPTS + 1):
+            hint = None
+            if k >= 2 and ref:  # after two rejections, hand Argon the optimiser's geometry as a tool result
+                hint = {"tool": "verifier.search_best_canopy",
+                        "best_geometry": {kk: ref["proposal"][kk] for kk in ("center", "size", "rotation_deg", "z0", "z1")},
+                        "shade_score_with_opaque_material": ref["score"],
+                        "note": "Brute-force optimum over simple canopies. Adapt it: choose material and size for the budget."}
             try:
-                prop = argon.propose_fix(scene, baseline, history, budget)
+                prop = argon.propose_fix(scene, baseline, history, budget, hint=hint, deep=k >= 2)
                 att = _attempt(scene, prop, "argon", budget)
             except Exception as e:
                 argon_error = f"{type(e).__name__}: {str(e)[:200]}"
@@ -156,7 +165,6 @@ def propose(req: ProposeReq):
                             "interaction_id": prop.get("_interaction_id")})
             if att["accepted"]:
                 break
-    ref = engine.search_best_canopy(scene)
     accepted = [a for a in attempts if a["accepted"]]
     chosen = accepted[-1] if accepted else None
     if chosen is None and ref:  # nothing passed: show the search result, clearly labelled
@@ -270,6 +278,22 @@ async def render_fix(scene: str = Form(...), photo: UploadFile = File(...)):
         raise HTTPException(502, f"Image model failed: {e}")
     return {"image_b64": base64.b64encode(img).decode(), "mime": mime, "prompt": prompt,
             "proposal_id": prop.get("id"), "verified_score": verdict["score_after"]}
+
+
+@app.get("/api/demo/verified")
+def verified_demo():
+    """Replay recorded Gemini geometry, with fresh deterministic verification."""
+    scene = json.loads((ROOT / "scenes" / "hackney_verified.json").read_text(encoding="utf-8"))
+    base = dict(scene, proposals=[])
+    verdict = engine.evaluate(base, scene["proposals"][-1], budget_gbp=8000)
+    return {"source": "Recorded Gemini proposal, reverified locally", "scene": scene,
+            "verdict": verdict, "before": engine.score(base),
+            "after": engine.score(scene, include_proposals=True)}
+
+
+@app.get("/")
+def polished_demo():
+    return RedirectResponse("/story.html")
 
 
 app.mount("/scenes", StaticFiles(directory=ROOT / "scenes"), name="scenes")

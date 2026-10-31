@@ -100,7 +100,8 @@ def apply_updates(scene: dict, upd: dict) -> dict:
     return sc
 
 
-def propose_fix(scene: dict, baseline: dict, history: list[dict], budget_gbp: float | None = None) -> dict:
+def propose_fix(scene: dict, baseline: dict, history: list[dict], budget_gbp: float | None = None,
+                hint: dict | None = None, deep: bool = False) -> dict:
     """Argon proposes ONE canopy or tree. It sees the verifier's verdicts on earlier attempts."""
     system = ("You design shade for bus stops. Propose one buildable canopy or tree that shades the waiting area "
               "through the whole analysis window, especially the hours the verifier says are worst. "
@@ -122,6 +123,7 @@ def propose_fix(scene: dict, baseline: dict, history: list[dict], budget_gbp: fl
         "worst_time_and_sun": worst,
         "shade_by_time": [r for r in baseline.get("by_time", []) if r.get("shade") is not None][::2],
         "previous_attempts_and_verifier_verdicts": history,
+        "optimizer_tool_result": hint,
     }
     out = None
     if API == "interactions":
