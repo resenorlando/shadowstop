@@ -1,0 +1,546 @@
+{
+ "stop": {
+  "name": "Hackney Town Hall",
+  "lat": 51.5452115,
+  "lon": -0.0554389,
+  "id": "osm-469771287"
+ },
+ "date": "2026-07-19",
+ "before": {
+  "score": 0.1399,
+  "by_time": [
+   {
+    "t": "09:00",
+    "sun_az": 98.76,
+    "sun_el": 33.7,
+    "shade": 0.0
+   },
+   {
+    "t": "09:15",
+    "sun_az": 101.99,
+    "sun_el": 35.99,
+    "shade": 0.0185
+   },
+   {
+    "t": "09:30",
+    "sun_az": 105.34,
+    "sun_el": 38.25,
+    "shade": 0.0741
+   },
+   {
+    "t": "09:45",
+    "sun_az": 108.84,
+    "sun_el": 40.47,
+    "shade": 0.0741
+   },
+   {
+    "t": "10:00",
+    "sun_az": 112.51,
+    "sun_el": 42.65,
+    "shade": 0.0741
+   },
+   {
+    "t": "10:15",
+    "sun_az": 116.37,
+    "sun_el": 44.77,
+    "shade": 0.1296
+   },
+   {
+    "t": "10:30",
+    "sun_az": 120.45,
+    "sun_el": 46.82,
+    "shade": 0.1481
+   },
+   {
+    "t": "10:45",
+    "sun_az": 124.77,
+    "sun_el": 48.78,
+    "shade": 0.1481
+   },
+   {
+    "t": "11:00",
+    "sun_az": 129.37,
+    "sun_el": 50.64,
+    "shade": 0.1481
+   },
+   {
+    "t": "11:15",
+    "sun_az": 134.26,
+    "sun_el": 52.38,
+    "shade": 0.1481
+   },
+   {
+    "t": "11:30",
+    "sun_az": 139.47,
+    "sun_el": 53.97,
+    "shade": 0.213
+   },
+   {
+    "t": "11:45",
+    "sun_az": 145.01,
+    "sun_el": 55.4,
+    "shade": 0.2407
+   },
+   {
+    "t": "12:00",
+    "sun_az": 150.88,
+    "sun_el": 56.63,
+    "shade": 0.25
+   },
+   {
+    "t": "12:15",
+    "sun_az": 157.06,
+    "sun_el": 57.65,
+    "shade": 0.25
+   },
+   {
+    "t": "12:30",
+    "sun_az": 163.52,
+    "sun_el": 58.44,
+    "shade": 0.2407
+   },
+   {
+    "t": "12:45",
+    "sun_az": 170.19,
+    "sun_el": 58.97,
+    "shade": 0.1852
+   },
+   {
+    "t": "13:00",
+    "sun_az": 177.0,
+    "sun_el": 59.22,
+    "shade": 0.25
+   },
+   {
+    "t": "13:15",
+    "sun_az": 183.85,
+    "sun_el": 59.2,
+    "shade": 0.25
+   },
+   {
+    "t": "13:30",
+    "sun_az": 190.65,
+    "sun_el": 58.91,
+    "shade": 0.25
+   },
+   {
+    "t": "13:45",
+    "sun_az": 197.29,
+    "sun_el": 58.34,
+    "shade": 0.25
+   },
+   {
+    "t": "14:00",
+    "sun_az": 203.71,
+    "sun_el": 57.52,
+    "shade": 0.2037
+   },
+   {
+    "t": "14:15",
+    "sun_az": 209.85,
+    "sun_el": 56.47,
+    "shade": 0.2222
+   },
+   {
+    "t": "14:30",
+    "sun_az": 215.68,
+    "sun_el": 55.21,
+    "shade": 0.213
+   },
+   {
+    "t": "14:45",
+    "sun_az": 221.17,
+    "sun_el": 53.76,
+    "shade": 0.1944
+   },
+   {
+    "t": "15:00",
+    "sun_az": 226.34,
+    "sun_el": 52.14,
+    "shade": 0.1944
+   },
+   {
+    "t": "15:15",
+    "sun_az": 231.19,
+    "sun_el": 50.39,
+    "shade": 0.1852
+   },
+   {
+    "t": "15:30",
+    "sun_az": 235.75,
+    "sun_el": 48.51,
+    "shade": 0.1204
+   },
+   {
+    "t": "15:45",
+    "sun_az": 240.04,
+    "sun_el": 46.54,
+    "shade": 0.1204
+   },
+   {
+    "t": "16:00",
+    "sun_az": 244.08,
+    "sun_el": 44.48,
+    "shade": 0.1204
+   },
+   {
+    "t": "16:15",
+    "sun_az": 247.92,
+    "sun_el": 42.35,
+    "shade": 0.1204
+   },
+   {
+    "t": "16:30",
+    "sun_az": 251.56,
+    "sun_el": 40.16,
+    "shade": 0.0463
+   },
+   {
+    "t": "16:45",
+    "sun_az": 255.04,
+    "sun_el": 37.93,
+    "shade": 0.0463
+   },
+   {
+    "t": "17:00",
+    "sun_az": 258.37,
+    "sun_el": 35.66,
+    "shade": 0.0463
+   },
+   {
+    "t": "17:15",
+    "sun_az": 261.59,
+    "sun_el": 33.36,
+    "shade": 0.0
+   },
+   {
+    "t": "17:30",
+    "sun_az": 264.7,
+    "sun_el": 31.05,
+    "shade": 0.0
+   },
+   {
+    "t": "17:45",
+    "sun_az": 267.72,
+    "sun_el": 28.72,
+    "shade": 0.0
+   },
+   {
+    "t": "18:00",
+    "sun_az": 270.67,
+    "sun_el": 26.39,
+    "shade": 0.0
+   }
+  ],
+  "worst_time": "09:00"
+ },
+ "after": {
+  "score": 0.7655,
+  "by_time": [
+   {
+    "t": "09:00",
+    "sun_az": 98.76,
+    "sun_el": 33.7,
+    "shade": 0.4722
+   },
+   {
+    "t": "09:15",
+    "sun_az": 101.99,
+    "sun_el": 35.99,
+    "shade": 0.5537
+   },
+   {
+    "t": "09:30",
+    "sun_az": 105.34,
+    "sun_el": 38.25,
+    "shade": 0.5778
+   },
+   {
+    "t": "09:45",
+    "sun_az": 108.84,
+    "sun_el": 40.47,
+    "shade": 0.5778
+   },
+   {
+    "t": "10:00",
+    "sun_az": 112.51,
+    "sun_el": 42.65,
+    "shade": 0.7509
+   },
+   {
+    "t": "10:15",
+    "sun_az": 116.37,
+    "sun_el": 44.77,
+    "shade": 0.775
+   },
+   {
+    "t": "10:30",
+    "sun_az": 120.45,
+    "sun_el": 46.82,
+    "shade": 0.7778
+   },
+   {
+    "t": "10:45",
+    "sun_az": 124.77,
+    "sun_el": 48.78,
+    "shade": 0.7778
+   },
+   {
+    "t": "11:00",
+    "sun_az": 129.37,
+    "sun_el": 50.64,
+    "shade": 0.7778
+   },
+   {
+    "t": "11:15",
+    "sun_az": 134.26,
+    "sun_el": 52.38,
+    "shade": 0.8407
+   },
+   {
+    "t": "11:30",
+    "sun_az": 139.47,
+    "sun_el": 53.97,
+    "shade": 0.819
+   },
+   {
+    "t": "11:45",
+    "sun_az": 145.01,
+    "sun_el": 55.4,
+    "shade": 0.8231
+   },
+   {
+    "t": "12:00",
+    "sun_az": 150.88,
+    "sun_el": 56.63,
+    "shade": 0.8245
+   },
+   {
+    "t": "12:15",
+    "sun_az": 157.06,
+    "sun_el": 57.65,
+    "shade": 0.8245
+   },
+   {
+    "t": "12:30",
+    "sun_az": 163.52,
+    "sun_el": 58.44,
+    "shade": 0.8231
+   },
+   {
+    "t": "12:45",
+    "sun_az": 170.19,
+    "sun_el": 58.97,
+    "shade": 0.8148
+   },
+   {
+    "t": "13:00",
+    "sun_az": 177.0,
+    "sun_el": 59.22,
+    "shade": 0.8245
+   },
+   {
+    "t": "13:15",
+    "sun_az": 183.85,
+    "sun_el": 59.2,
+    "shade": 0.8245
+   },
+   {
+    "t": "13:30",
+    "sun_az": 190.65,
+    "sun_el": 58.91,
+    "shade": 0.8245
+   },
+   {
+    "t": "13:45",
+    "sun_az": 197.29,
+    "sun_el": 58.34,
+    "shade": 0.8245
+   },
+   {
+    "t": "14:00",
+    "sun_az": 203.71,
+    "sun_el": 57.52,
+    "shade": 0.8176
+   },
+   {
+    "t": "14:15",
+    "sun_az": 209.85,
+    "sun_el": 56.47,
+    "shade": 0.8204
+   },
+   {
+    "t": "14:30",
+    "sun_az": 215.68,
+    "sun_el": 55.21,
+    "shade": 0.819
+   },
+   {
+    "t": "14:45",
+    "sun_az": 221.17,
+    "sun_el": 53.76,
+    "shade": 0.8162
+   },
+   {
+    "t": "15:00",
+    "sun_az": 226.34,
+    "sun_el": 52.14,
+    "shade": 0.8162
+   },
+   {
+    "t": "15:15",
+    "sun_az": 231.19,
+    "sun_el": 50.39,
+    "shade": 0.8463
+   },
+   {
+    "t": "15:30",
+    "sun_az": 235.75,
+    "sun_el": 48.51,
+    "shade": 0.8681
+   },
+   {
+    "t": "15:45",
+    "sun_az": 240.04,
+    "sun_el": 46.54,
+    "shade": 0.8681
+   },
+   {
+    "t": "16:00",
+    "sun_az": 244.08,
+    "sun_el": 44.48,
+    "shade": 0.8681
+   },
+   {
+    "t": "16:15",
+    "sun_az": 247.92,
+    "sun_el": 42.35,
+    "shade": 0.8681
+   },
+   {
+    "t": "16:30",
+    "sun_az": 251.56,
+    "sun_el": 40.16,
+    "shade": 0.8569
+   },
+   {
+    "t": "16:45",
+    "sun_az": 255.04,
+    "sun_el": 37.93,
+    "shade": 0.8569
+   },
+   {
+    "t": "17:00",
+    "sun_az": 258.37,
+    "sun_el": 35.66,
+    "shade": 0.8412
+   },
+   {
+    "t": "17:15",
+    "sun_az": 261.59,
+    "sun_el": 33.36,
+    "shade": 0.6454
+   },
+   {
+    "t": "17:30",
+    "sun_az": 264.7,
+    "sun_el": 31.05,
+    "shade": 0.5981
+   },
+   {
+    "t": "17:45",
+    "sun_az": 267.72,
+    "sun_el": 28.72,
+    "shade": 0.5824
+   },
+   {
+    "t": "18:00",
+    "sun_az": 270.67,
+    "sun_el": 26.39,
+    "shade": 0.425
+   }
+  ],
+  "worst_time": "18:00"
+ },
+ "attempts": [
+  {
+   "by": "baseline",
+   "accepted": false,
+   "reason": "shade gain +14 pts is below the +25 pt bar; at 09:00 (sun az 99 deg, el 34 deg) only 0% of the waiting area is shaded",
+   "material": "opaque_metal_roof",
+   "material_label": "Reflective opaque metal roof panel",
+   "cost_gbp": 4290.0,
+   "score_after": 0.2798
+  },
+  {
+   "by": "argon",
+   "accepted": false,
+   "reason": "at 18:00 (sun az 271 deg, el 26 deg) only 13% of the waiting area is shaded",
+   "material": "shade_fabric",
+   "material_label": "Tensioned shade-sail fabric",
+   "cost_gbp": 3360.0,
+   "score_after": 0.6957
+  },
+  {
+   "by": "argon",
+   "accepted": true,
+   "reason": "passes every check",
+   "material": "shade_fabric",
+   "material_label": "Tensioned shade-sail fabric",
+   "cost_gbp": 3350.0,
+   "score_after": 0.7655
+  }
+ ],
+ "design": {
+  "material": "shade_fabric",
+  "material_label": "Tensioned shade-sail fabric",
+  "cost_gbp": 3350.0,
+  "size": [
+   5.7,
+   4.2
+  ]
+ },
+ "stats": {
+  "shade_before_pct": 14,
+  "shade_after_pct": 77,
+  "wait10_sun_min_before": 8.6,
+  "wait10_sun_min_after": 2.3,
+  "sun_hours_before": 7.7,
+  "sun_hours_after": 2.1,
+  "uv_cut_pct": 73,
+  "cost_gbp": 3350.0,
+  "gbp_per_shaded_passenger_hour": 0.45,
+  "extra_shaded_passenger_hours_per_year": 938,
+  "value_assumptions": {
+   "passengers_per_day": 300,
+   "wait_min": 5,
+   "hot_days_per_year": 60,
+   "life_years": 8
+  },
+  "context": [
+   "Around 86% of melanoma skin cancers in the UK are caused by UV exposure (Cancer Research UK).",
+   "Shade cuts direct-beam UV; scattered sky UV still reaches people, so shade complements sunscreen rather than replacing it."
+  ]
+ },
+ "photo_before": "assets/hackney_mare_street.jpg",
+ "photo_after": "assets/hackney_mare_street_after.jpg",
+ "photo_credit": "Mare Street by Cjc13 (CC BY-SA 3.0, Wikimedia Commons)",
+ "waiting_area_px": [
+  [
+   0.36,
+   0.7
+  ],
+  [
+   0.6,
+   0.69
+  ],
+  [
+   0.62,
+   0.765
+  ],
+  [
+   0.34,
+   0.78
+  ]
+ ]
+}
