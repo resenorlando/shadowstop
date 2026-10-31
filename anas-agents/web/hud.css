@@ -1,0 +1,767 @@
+/* ==========================================================================
+   ShadowStop — Frontier Architectural & Solar Telemetry HUD (hud.css)
+   Dark glassmorphism, solar amber (#ff7a3d / #ffd23f), verified emerald (#36d67e),
+   exposure crimson (#ff4d4f), crisp tabular numerals.
+   ========================================================================== */
+
+:root {
+  --hud-glass: rgba(14, 20, 28, 0.78);
+  --hud-glass-strong: rgba(11, 16, 23, 0.90);
+  --hud-card: rgba(24, 33, 45, 0.72);
+  --hud-border: rgba(255, 255, 255, 0.09);
+  --hud-border-bright: rgba(255, 122, 61, 0.45);
+  --hud-amber: #ff7a3d;
+  --hud-gold: #ffd23f;
+  --hud-emerald: #36d67e;
+  --hud-crimson: #ff4d4f;
+  --hud-cyan: #38bdf8;
+  --hud-shadow: 0 12px 36px rgba(0, 0, 0, 0.55), 0 1px 0 rgba(255, 255, 255, 0.06) inset;
+}
+
+/* Subtle architectural upgrade for existing shell */
+#topbar {
+  background: linear-gradient(180deg, #121a24 0%, #0c1118 100%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.45);
+  z-index: 20;
+  position: relative;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+}
+
+.brand .logo {
+  filter: drop-shadow(0 0 8px rgba(255, 210, 63, 0.55));
+}
+
+.panel {
+  background: linear-gradient(180deg, #121922 0%, #0e141c 100%);
+  scrollbar-width: thin;
+  scrollbar-color: #283646 transparent;
+}
+
+.score {
+  background: linear-gradient(180deg, rgba(28, 38, 50, 0.85) 0%, rgba(19, 26, 35, 0.95) 100%);
+  border: 1px solid var(--hud-border);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+}
+
+.now-shade,
+.legend {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  background: var(--hud-glass) !important;
+  border: 1px solid var(--hud-border) !important;
+  box-shadow: var(--hud-shadow);
+}
+
+/* ==========================================================================
+   1. TOPBAR COMMAND CONTROLS (.hero-demo-btn, .replay-btn, .cinema-btn)
+   ========================================================================== */
+
+.hud-top-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: 4px;
+}
+
+.hero-demo-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: linear-gradient(135deg, #ff7a3d 0%, #ff9a3d 55%, #ffd23f 100%);
+  color: #160b02;
+  font-weight: 800;
+  font-size: 13px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  padding: 7px 14px;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 225, 130, 0.7);
+  box-shadow: 0 0 18px rgba(255, 122, 61, 0.45), 0 1px 0 rgba(255, 255, 255, 0.35) inset;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.2s ease, filter 0.15s ease;
+  animation: heroPulse 2.6s infinite ease-in-out;
+  white-space: nowrap;
+}
+
+.hero-demo-btn:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.07);
+  box-shadow: 0 0 26px rgba(255, 122, 61, 0.75), 0 1px 0 rgba(255, 255, 255, 0.5) inset;
+  background: linear-gradient(135deg, #ff854d 0%, #ffa84d 55%, #ffda55 100%);
+}
+
+.hero-demo-btn.running {
+  background: linear-gradient(135deg, #ffd23f 0%, #ff7a3d 100%);
+  box-shadow: 0 0 24px rgba(255, 210, 63, 0.7);
+}
+
+@keyframes heroPulse {
+  0%, 100% {
+    box-shadow: 0 0 14px rgba(255, 122, 61, 0.38), 0 0 0 0 rgba(255, 122, 61, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 22px rgba(255, 122, 61, 0.65), 0 0 0 5px rgba(255, 122, 61, 0);
+  }
+}
+
+.replay-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: rgba(26, 36, 48, 0.88);
+  border: 1px solid rgba(54, 214, 126, 0.38);
+  color: #e8eef5;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 6px 11px;
+  border-radius: 9px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
+}
+
+.replay-btn:hover {
+  background: rgba(34, 49, 66, 0.95);
+  border-color: var(--hud-emerald);
+  transform: translateY(-1px);
+}
+
+.replay-btn .replay-pill {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: rgba(54, 214, 126, 0.18);
+  color: var(--hud-emerald);
+  border: 1px solid rgba(54, 214, 126, 0.45);
+  font-variant-numeric: tabular-nums;
+}
+
+.replay-btn.has-local .replay-pill {
+  background: var(--hud-emerald);
+  color: #04220f;
+}
+
+.cinema-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(24, 33, 44, 0.85);
+  border: 1px solid var(--hud-border);
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 6px 11px;
+  border-radius: 9px;
+  white-space: nowrap;
+}
+
+.cinema-btn:hover {
+  border-color: var(--hud-gold);
+  color: var(--hud-gold);
+}
+
+.cinema-btn.on {
+  background: rgba(255, 210, 63, 0.16);
+  border-color: var(--hud-gold);
+  color: var(--hud-gold);
+  box-shadow: 0 0 14px rgba(255, 210, 63, 0.25);
+}
+
+/* Cinema mode full-bleed 3D viewport */
+body.cinema-mode #layout {
+  grid-template-columns: 1fr !important;
+}
+
+body.cinema-mode #left,
+body.cinema-mode #right {
+  display: none !important;
+}
+
+/* ==========================================================================
+   2. CINEMATIC NARRATIVE BANNER (#cinematicBanner) inside #view
+   ========================================================================== */
+
+#cinematicBanner {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(680px, calc(100% - 32px));
+  z-index: 15;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  background: var(--hud-glass-strong);
+  border: 1px solid rgba(255, 122, 61, 0.35);
+  border-radius: 14px;
+  padding: 12px 16px 10px;
+  box-shadow: var(--hud-shadow), 0 0 32px rgba(0, 0, 0, 0.65);
+  color: var(--text);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  pointer-events: auto;
+}
+
+#cinematicBanner.hidden {
+  display: none !important;
+}
+
+#cinematicBanner.tone-verified {
+  border-color: rgba(54, 214, 126, 0.55);
+  box-shadow: var(--hud-shadow), 0 0 28px rgba(54, 214, 126, 0.2);
+}
+
+#cinematicBanner.tone-rejected {
+  border-color: rgba(255, 77, 79, 0.6);
+  box-shadow: var(--hud-shadow), 0 0 28px rgba(255, 77, 79, 0.22);
+}
+
+.cb-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.cb-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--hud-gold);
+  background: rgba(255, 210, 63, 0.12);
+  border: 1px solid rgba(255, 210, 63, 0.35);
+  padding: 3px 9px;
+  border-radius: 999px;
+}
+
+.cb-tag::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--hud-gold);
+  box-shadow: 0 0 8px var(--hud-gold);
+}
+
+.cb-right-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cb-metric {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--hud-border);
+  border-radius: 8px;
+  padding: 3px 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.cb-metric-lbl {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.9px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.cb-metric-val {
+  font-size: 15px;
+  font-weight: 900;
+  color: var(--hud-gold);
+}
+
+#cinematicBanner.tone-verified .cb-metric-val {
+  color: var(--hud-emerald);
+}
+
+#cinematicBanner.tone-rejected .cb-metric-val {
+  color: var(--hud-crimson);
+}
+
+.cb-actions {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.cb-btn {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 9px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--hud-border);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.cb-btn:hover {
+  color: var(--text);
+  border-color: rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.cb-title {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+  line-height: 1.25;
+  color: #ffffff;
+  margin-bottom: 3px;
+}
+
+.cb-subtitle {
+  font-size: 13px;
+  color: #b5c2d1;
+  line-height: 1.4;
+  margin-bottom: 8px;
+}
+
+.cb-progress {
+  width: 100%;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.09);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.cb-progress-bar {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--hud-amber), var(--hud-gold), var(--hud-emerald));
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+/* ==========================================================================
+   3. POSTCODE & LONDON AREA QUICK-JUMP BAR (#tab-map) + RADAR SCAN OVERLAY
+   ========================================================================== */
+
+.postcode-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin-bottom: 9px;
+  background: rgba(22, 31, 42, 0.85);
+  border: 1px solid var(--hud-border);
+  border-radius: 10px;
+  padding: 8px 9px;
+}
+
+.postcode-input-row {
+  display: flex;
+  gap: 6px;
+}
+
+.postcode-input-row input[type="text"] {
+  flex: 1;
+  min-width: 0;
+  background: #0d131a;
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.postcode-input-row input[type="text"]:focus {
+  border-color: var(--hud-amber);
+  box-shadow: 0 0 0 2px rgba(255, 122, 61, 0.18);
+}
+
+.postcode-input-row button {
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 800;
+  border-radius: 7px;
+  flex-shrink: 0;
+}
+
+.area-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.area-chip {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.area-chip:hover {
+  color: var(--text);
+  border-color: var(--hud-amber);
+  background: rgba(255, 122, 61, 0.12);
+}
+
+.area-chip.active {
+  color: #1a0d05;
+  background: var(--hud-amber);
+  border-color: var(--hud-amber);
+}
+
+.postcode-status {
+  font-size: 11px;
+  color: var(--hud-gold);
+  min-height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Radar Scan Pulse Overlay on #map */
+#map {
+  position: relative;
+  overflow: hidden;
+}
+
+.map-scan-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 850;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at center, rgba(255, 122, 61, 0.12) 0%, rgba(11, 15, 20, 0.48) 100%);
+  backdrop-filter: blur(1.5px);
+}
+
+.map-scan-overlay .radar-ring {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 122, 61, 0.65);
+  box-shadow: 0 0 24px rgba(255, 122, 61, 0.45), inset 0 0 20px rgba(255, 122, 61, 0.25);
+  position: relative;
+  animation: radarRingPulse 1.6s ease-out infinite;
+}
+
+.map-scan-overlay .radar-sweep {
+  position: absolute;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, rgba(255, 122, 61, 0.48), transparent 45%);
+  animation: radarSpin 1.35s linear infinite;
+}
+
+.map-scan-overlay .scan-status {
+  margin-top: 12px;
+  background: rgba(11, 15, 20, 0.9);
+  border: 1px solid rgba(255, 122, 61, 0.5);
+  color: var(--hud-gold);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+}
+
+@keyframes radarSpin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes radarRingPulse {
+  0% { transform: scale(0.75); opacity: 0.95; }
+  100% { transform: scale(1.35); opacity: 0.15; }
+}
+
+/* ==========================================================================
+   4. INTERACTIVE CANOPY & LOUVER TUNER CARD (#canopyTunerCard) in #right
+   ========================================================================== */
+
+#canopyTunerCard {
+  margin-top: 12px;
+  background: linear-gradient(180deg, rgba(25, 35, 48, 0.92) 0%, rgba(16, 23, 32, 0.96) 100%);
+  border: 1px solid rgba(255, 122, 61, 0.28);
+  border-radius: 12px;
+  padding: 11px 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.32);
+}
+
+.tuner-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.tuner-title-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tuner-title {
+  font-size: 12.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--hud-gold);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tuner-sub {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.louver-viz {
+  width: 66px;
+  height: 28px;
+  background: rgba(11, 15, 20, 0.75);
+  border: 1px solid var(--hud-border);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-evenly;
+  padding: 0 5px;
+  overflow: hidden;
+}
+
+.louver-blade {
+  width: 9px;
+  height: 3px;
+  background: var(--hud-amber);
+  border-radius: 2px;
+  transition: transform 0.1s ease;
+  box-shadow: 0 0 4px rgba(255, 122, 61, 0.4);
+}
+
+.tuner-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.tuner-row {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.tuner-label-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 12px;
+}
+
+.tuner-label-line .tl-name {
+  color: #c8d4e3;
+  font-weight: 600;
+}
+
+.tuner-label-line .tl-val {
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+  color: var(--hud-gold);
+  font-size: 12.5px;
+}
+
+.tuner-row input[type="range"] {
+  width: 100%;
+  accent-color: var(--hud-amber);
+  height: 18px;
+  margin: 0;
+  cursor: pointer;
+}
+
+.tuner-dual-sliders {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.tuner-dual-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tuner-dual-item span {
+  font-size: 10.5px;
+  color: var(--muted);
+  display: flex;
+  justify-content: space-between;
+  font-variant-numeric: tabular-nums;
+}
+
+.tuner-constraint-badge {
+  margin-top: 9px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  line-height: 1.3;
+}
+
+.tuner-constraint-badge.ok {
+  background: rgba(54, 214, 126, 0.13);
+  border: 1px solid rgba(54, 214, 126, 0.42);
+  color: var(--hud-emerald);
+}
+
+.tuner-constraint-badge.bad {
+  background: rgba(255, 77, 79, 0.15);
+  border: 1px solid rgba(255, 77, 79, 0.5);
+  color: #ff8082;
+}
+
+.tuner-weakest-btn {
+  margin-top: 8px;
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 800;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(255, 122, 61, 0.16);
+  border: 1px solid rgba(255, 122, 61, 0.5);
+  color: var(--hud-gold);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.tuner-weakest-btn:hover {
+  background: var(--hud-amber);
+  color: #1a0d05;
+  border-color: var(--hud-amber);
+}
+
+/* ==========================================================================
+   5. ONE-CLICK REAL HACKNEY STREET PHOTO LOADER BUTTONS & PREVIEW
+   ========================================================================== */
+
+.sample-photo-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: rgba(59, 140, 255, 0.14);
+  border: 1px dashed rgba(59, 140, 255, 0.55);
+  color: #8ec5ff;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.sample-photo-btn:hover {
+  background: rgba(59, 140, 255, 0.25);
+  border-style: solid;
+  border-color: #63a4ff;
+  color: #ffffff;
+}
+
+.sample-photo-preview {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  background: rgba(16, 23, 32, 0.9);
+  border: 1px solid var(--hud-border);
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 11.5px;
+}
+
+.sample-photo-preview img {
+  width: 54px;
+  height: 38px;
+  object-fit: cover;
+  border-radius: 5px;
+  border: 1px solid var(--line);
+  flex-shrink: 0;
+}
+
+.sample-photo-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.sample-photo-meta b {
+  color: var(--text);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sample-photo-meta span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+/* Replay Mode Banner inside #proposeLog */
+.replay-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: rgba(54, 214, 126, 0.12);
+  border: 1px solid rgba(54, 214, 126, 0.45);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--hud-emerald);
+  font-weight: 700;
+}
+
+/* Hackathon stage focus: hide indicative business-case / budget clutter & maximize 3D Google Earth viewport */
+#bizCase,
+#caseBox,
+.budget-row,
+.cost-line {
+  display: none !important;
+}
+
+main:not(.theater-mode) {
+  grid-template-columns: 290px 1fr 335px;
+}

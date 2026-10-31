@@ -3,9 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ShadowStop</title>
+<title>ShadowStop — Architectural Solar Intelligence</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="hud.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script type="importmap">
 {
@@ -37,10 +38,6 @@
       <button class="tab" data-tab="about">How it works</button>
     </div>
     <div class="tab-body" id="tab-map">
-      <form id="postcodeForm" class="search-row">
-        <input id="postcodeInput" type="text" placeholder="London postcode / area (e.g. E8 1EA, SW9 8PS)…">
-        <button id="postcodeBtn" type="submit">Go</button>
-      </form>
       <div id="map"></div>
       <div class="row">
         <button id="scanBtn" class="primary">Scan this area</button>
@@ -67,17 +64,6 @@
         <div class="now-shade"><span class="lbl">Shade now</span> <span id="nowShade">--</span></div>
         <div id="modeBadge" class="mode-badge after">AFTER</div>
       </div>
-      <div id="diagCard" class="diag hidden" title="Click to enlarge / dock">
-        <canvas id="diagMap" width="512" height="512"></canvas>
-        <div class="diag-body">
-          <div class="diag-kicker">ShadowStop diagnosis</div>
-          <div id="diagName" class="diag-name"></div>
-          <div id="diagSun" class="diag-sun"></div>
-          <div id="diagWorst" class="diag-worst"></div>
-          <div id="diagAfter" class="diag-after hidden"></div>
-        </div>
-      </div>
-      <div id="satAttr" class="sat-attr hidden">Imagery © Esri, Maxar, Earthstar Geographics</div>
       <div id="legend" class="legend">
         <span>daily shade</span><div class="grad"></div><span class="l0">0%</span><span class="l1">100%</span>
       </div>
@@ -110,7 +96,6 @@
       <label class="nolimit"><input id="noLimit" type="checkbox"> No limit</label>
     </div>
     <button id="proposeBtn" class="primary wide">&#10024; Ask Argon to fix it</button>
-    <button id="replayBtn" class="replay-btn wide" title="Reload last /api/propose response from localStorage">&#8634; Replay last run <span class="badge replay">REPLAY</span></button>
     <div id="proposeLog" class="log"></div>
     <div id="approvalBox" class="approval hidden">
       <div id="approvalStatus" class="approval-status">Awaiting operator review</div>
@@ -120,7 +105,6 @@
     <h2 class="sec">See it on the real street</h2>
     <div class="photo-form">
       <input id="streetInput" type="file" accept="image/*">
-      <div class="small muted">Upload a photo or leave blank to use Hackney Town Hall street photo.</div>
       <button id="renderBtn" disabled title="Needs an accepted Argon proposal">Render the verified fix into this photo</button>
       <div id="renderHint" class="small muted">Needs an accepted Argon proposal first.</div>
     </div>
@@ -129,8 +113,7 @@
     <h2 class="sec">Photo check</h2>
     <div class="photo-form">
       <input id="photoInput" type="file" accept="image/*">
-      <div class="small muted">Upload a photo or leave blank to use Hackney Town Hall street photo.</div>
-      <label class="small">Time (optional) <input id="photoTime" type="time" value="14:00"></label>
+      <label class="small">Time (optional) <input id="photoTime" type="time"></label>
       <button id="photoBtn">Check photo</button>
     </div>
     <div id="photoResult"></div>

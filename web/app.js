@@ -1,8 +1,23 @@
-// ShadowStop web app: 3D shade view + verification panel.
+// ShadowStop web app: 3D shade view + verification panel + Hero Cinematic & HUD integration.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { scoreScene } from './engine.js';
-import { satelliteCanvas, ESRI_URL, ESRI_ATTR } from './sat.js';
+import { scoreScene, computeLouverEffectiveOpacity } from './engine.js';
+import { runPhysicsAudit } from './physics_audit.js';
+import {
+  createEnvironment,
+  updateEnvironmentForScene,
+  buildDetailedOccluder,
+  setCanopyInstallProgress,
+  setCanopyLouverAngle,
+} from './scene_builders.js';
+import { createDemoController } from './cinematics.js';
+import { initHUD } from './hud.js';
+import {
+  CACHED_HACKNEY_STOPS,
+  HACKNEY_HERO_SCENE,
+  REPLAY_HACKNEY_PROPOSE,
+  REPLAY_DEMO_PROPOSE,
+} from './demo_presets.js';
 
 // ---------------------------------------------------------------- utilities
 const $ = (id) => document.getElementById(id);
@@ -46,12 +61,15 @@ async function api(path, { method = 'GET', body, form, timeout = 10000 } = {}) {
 }
 
 function busy(btn, on, label) {
+  if (!btn) return;
   if (on) { btn.dataset.label = btn.innerHTML; btn.disabled = true; btn.innerHTML = `<span class="spinner"></span>${label || 'Working…'}`; }
   else { btn.disabled = false; if (btn.dataset.label) btn.innerHTML = btn.dataset.label; }
 }
 
 // Embedded copy of scenes/demo.json: last-resort fallback so the stage demo never shows an empty view.
 const EMBEDDED_DEMO = {"id":"demo-glass-shelter","name":"Demo stop: glass shelter on an east-west street","lat":51.545,"lon":-0.0553,"date":"2026-07-19","hours":[9,18],"utc_offset":1,"waiting_area":[[-3,-1.6],[3,-1.6],[3,0.6],[-3,0.6]],"buildable_area":[[-6,-4],[6,-4],[6,1.5],[-6,1.5]],"occluders":[{"id":"bldg-north","kind":"building","shape":"prism","footprint":[[-20,4],[20,4],[20,16],[-20,16]],"z0":0,"z1":12,"opacity":1.0,"source":"osm","confidence":0.9,"note":"terrace north of the stop, 4 levels"},{"id":"bldg-south","kind":"building","shape":"prism","footprint":[[-18,-26],[-4,-26],[-4,-14],[-18,-14]],"z0":0,"z1":9,"opacity":1.0,"source":"osm","confidence":0.9,"note":"across the road, 3 levels"},{"id":"roof","kind":"shelter_roof","shape":"box","center":[0,-0.3],"size":[4,1.4],"rotation_deg":0,"z0":2.4,"z1":2.5,"opacity":0.1,"source":"argon","confidence":0.8,"note":"clear polycarbonate roof: OSM says shelter=yes, but it gives almost no shade"},{"id":"back-panel","kind":"wall","shape":"box","center":[0,0.45],"size":[4,0.05],"rotation_deg":0,"z0":0.1,"z1":2.4,"opacity":0.1,"source":"argon","confidence":0.8,"note":"glass back panel"},{"id":"tree-west","kind":"tree","shape":"sphere","center":[-9,-2],"radius":2.5,"z0":3,"z1":8,"opacity":0.7,"source":"argon","confidence":0.6},{"id":"pole","kind":"wall","shape":"cylinder","center":[3.5,-1.8],"radius":0.05,"z0":0,"z1":3,"opacity":1.0,"source":"measured","confidence":1.0,"note":"bus stop flag pole, 3 m"}],"proposals":[{"id":"canopy-1","kind":"canopy","shape":"box","center":[0,-1.0],"size":[6,2.6],"rotation_deg":0,"z0":2.6,"z1":2.7,"opacity":1.0,"source":"proposal","confidence":1.0,"note":"opaque canopy over the waiting area"}]};
+
+const LAST_PROPOSE_KEY = 'shadowstop_last_propose_v1';
 
 // ---------------------------------------------------------------- sun model (NOAA-style, matches server convention)
 // azimuth: degrees clockwise from north; elevation: degrees above horizon.
@@ -81,75 +99,71 @@ const toThree = (x, y, z) => new THREE.Vector3(x, z, -y);
 // ---------------------------------------------------------------- state
 const state = {
   scene: null,
-  before: null,       // score object without proposals
-  after: null,        // score object with proposals
-  mode: 'after',      // before | after
+  before: null,         // score object without proposals
+  after: null,          // score object with proposals
+  mode: 'after',        // before | after
   heat: true,
   hour: 12,
   playing: false,
-  serverSun: null,    // {hour, azimuth, elevation} last /api/sun answer
+  serverSun: null,      // {hour, azimuth, elevation} last /api/sun answer
   proposing: false,
-  attempts: [],       // last /api/propose attempts
-  accepted: null,     // accepted attempt (verifier said yes)
-  approved: null,     // {at: Date} once the human operator approves
+  attempts: [],         // last /api/propose attempts
+  accepted: null,       // accepted attempt (verifier said yes)
+  approved: null,       // {at: Date} once the human operator approves
   beforeBaseline: null, // verified score before any proposal (for the brief)
-  materials: {},      // material catalogue from /api/propose
-  budget: null,       // budget_gbp echoed by /api/propose
+  materials: {},        // material catalogue from /api/propose
+  budget: null,         // budget_gbp echoed by /api/propose
+  installProgress: 1.0, // 0..1 canopy physical assembly progress
+  louverAngleDeg: 18,   // articulated louver blade angle
+  lastAudit: null,      // physics consistency audit report
 };
+
+let hudApi = null;
+let demoCtrl = null;
 
 // ---------------------------------------------------------------- three.js setup
 const viewEl = $('view');
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.05;
+renderer.toneMappingExposure = 1.08;
 viewEl.appendChild(renderer.domElement);
 
 const scene3 = new THREE.Scene();
-scene3.fog = new THREE.Fog(0x0b0f14, 90, 220);
+scene3.fog = new THREE.Fog(0xd8e4f0, 145, 340);
 const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 1000);
-camera.position.set(15, 16, 25);
+camera.position.set(17.5, 14.5, 22.5);
 const controls = new OrbitControls(camera, renderer.domElement);
-controls.target.set(0, 0.5, -1);
+controls.target.set(0.5, 1.4, -0.5);
 controls.enableDamping = true;
-controls.maxPolarAngle = Math.PI / 2 - 0.03;
+controls.dampingFactor = 0.06;
+controls.maxPolarAngle = Math.PI / 2 - 0.025;
 
-const hemi = new THREE.HemisphereLight(0xbcd4ff, 0x3a3226, 0.75);
+const hemi = new THREE.HemisphereLight(0xdceeff, 0x7c715e, 0.88);
 scene3.add(hemi);
-const sun = new THREE.DirectionalLight(0xfff1d6, 2.6);
+const sun = new THREE.DirectionalLight(0xfff3d8, 3.0);
 sun.castShadow = true;
 sun.shadow.mapSize.set(4096, 4096);
-sun.shadow.bias = -0.0004;
-sun.shadow.normalBias = 0.03;
+sun.shadow.bias = -0.00035;
+sun.shadow.normalBias = 0.025;
 scene3.add(sun);
 scene3.add(sun.target);
 const sunBall = new THREE.Mesh(new THREE.SphereGeometry(1.4, 24, 16), new THREE.MeshBasicMaterial({ color: 0xffd23f }));
-const sunGlow = new THREE.Mesh(new THREE.SphereGeometry(2.6, 24, 16), new THREE.MeshBasicMaterial({ color: 0xffb23f, transparent: true, opacity: 0.25 }));
+const sunGlow = new THREE.Mesh(new THREE.SphereGeometry(2.8, 24, 16), new THREE.MeshBasicMaterial({ color: 0xffb23f, transparent: true, opacity: 0.28 }));
 sunBall.add(sunGlow);
 scene3.add(sunBall);
 
-// ground + road
-const ground = new THREE.Mesh(new THREE.PlaneGeometry(400, 400), new THREE.MeshStandardMaterial({ color: 0x59606a, roughness: 1 }));
-ground.rotation.x = -Math.PI / 2;
-ground.receiveShadow = true;
-scene3.add(ground);
-const road = new THREE.Mesh(new THREE.PlaneGeometry(400, 8), new THREE.MeshStandardMaterial({ color: 0x3a3f46, roughness: 1 }));
-road.rotation.x = -Math.PI / 2;
-road.receiveShadow = true;
-scene3.add(road);
-const pavement = new THREE.Mesh(new THREE.PlaneGeometry(400, 1), new THREE.MeshStandardMaterial({ color: 0xc9ccd1, roughness: 1 }));
-pavement.rotation.x = -Math.PI / 2;
-pavement.receiveShadow = true;
-scene3.add(pavement);
+// Create rich London architectural streetscape environment (road, bus bay, kerbs, paving slabs, tactile blister, TfL stop pole, shelter frame, passengers)
+const envState = createEnvironment(scene3, toThree);
 
 // north marker
 function makeLabel(text, color = '#ffd23f') {
   const c = document.createElement('canvas'); c.width = c.height = 128;
   const g = c.getContext('2d');
-  g.fillStyle = 'rgba(11,15,20,.7)'; g.beginPath(); g.arc(64, 64, 56, 0, Math.PI * 2); g.fill();
+  g.fillStyle = 'rgba(11,15,20,.78)'; g.beginPath(); g.arc(64, 64, 56, 0, Math.PI * 2); g.fill();
   g.fillStyle = color; g.font = 'bold 72px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(text, 64, 68);
   const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), depthTest: false }));
   sp.scale.set(2.2, 2.2, 1);
@@ -165,94 +179,16 @@ let heatMesh = null;
 let sceneRadius = 30;
 const meshById = new Map();
 
-const MAT = {
-  // semi-transparent so the real rooftops in the aerial imagery show through; still casts shadows
-  building: () => new THREE.MeshStandardMaterial({ color: 0xe4e8ee, roughness: 0.9, transparent: true, opacity: 0.35, depthWrite: false }),
-  glass: () => new THREE.MeshStandardMaterial({ color: 0x6fc3ff, transparent: true, opacity: 0.28, roughness: 0.1, metalness: 0.1, depthWrite: false }),
-  shelter_roof: () => new THREE.MeshStandardMaterial({ color: 0x6b7480, roughness: 0.6 }),
-  wall: () => new THREE.MeshStandardMaterial({ color: 0x4a525c, roughness: 0.7 }),
-  tree: () => new THREE.MeshStandardMaterial({ color: 0x3c9a4b, roughness: 0.9, flatShading: true }),
-  canopy: () => new THREE.MeshStandardMaterial({ color: 0xe0703c, roughness: 0.55, emissive: 0x3a1206 }),
-  proposalTree: () => new THREE.MeshStandardMaterial({ color: 0x8bd94a, roughness: 0.85, flatShading: true, emissive: 0x1a3306 }),
-  trunk: () => new THREE.MeshStandardMaterial({ color: 0x6b4a2b, roughness: 1 }),
-};
-
-const PROPOSAL_MAT = {
-  opaque_metal_roof: () => new THREE.MeshStandardMaterial({ color: 0x4a4f57, roughness: 0.45, metalness: 0.6 }),
-  solar_polycarbonate: () => new THREE.MeshStandardMaterial({ color: 0xb5793a, roughness: 0.3, metalness: 0.2, transparent: true, opacity: 0.65, depthWrite: false }),
-  shade_fabric: () => new THREE.MeshStandardMaterial({ color: 0xf1ebdd, roughness: 0.95, side: THREE.DoubleSide }),
-  street_tree: () => MAT.proposalTree(),
-};
-function materialFor(o, isProposal) {
-  const op = o.opacity ?? 1;
-  if (isProposal && o.material && PROPOSAL_MAT[o.material]) return PROPOSAL_MAT[o.material]();
-  if (isProposal || o.source === 'proposal' || o.kind === 'canopy') {
-    return o.kind === 'tree' ? MAT.proposalTree() : MAT.canopy();
-  }
-  if (op < 0.3) return MAT.glass();
-  return (MAT[o.kind] || MAT.building)();
-}
-
-function buildOccluder(o, isProposal = false) {
-  const grp = new THREE.Group();
-  grp.userData.occ = o;
-  const mat = materialFor(o, isProposal);
-  const z0 = o.z0 ?? 0, z1 = o.z1 ?? z0 + 1;
-  const h = Math.max(0.02, z1 - z0);
-  let mesh;
-  if (o.shape === 'prism' && o.footprint?.length >= 3) {
-    const shp = new THREE.Shape(o.footprint.map(([x, y]) => new THREE.Vector2(x, y)));
-    mesh = new THREE.Mesh(new THREE.ExtrudeGeometry(shp, { depth: h, bevelEnabled: false }), mat);
-    mesh.rotation.x = -Math.PI / 2; // local (x,y,z) -> (x, z, -y)
-    mesh.position.y = z0;
-  } else if (o.shape === 'box') {
-    const [cx, cy] = o.center || [0, 0];
-    const [sx, sy] = o.size || [1, 1];
-    mesh = new THREE.Mesh(new THREE.BoxGeometry(sx, h, sy), mat);
-    mesh.position.copy(toThree(cx, cy, (z0 + z1) / 2));
-    mesh.rotation.y = THREE.MathUtils.degToRad(o.rotation_deg || 0);
-  } else if (o.shape === 'cylinder') {
-    const [cx, cy] = o.center || [0, 0];
-    const r = Math.max(o.radius ?? 0.2, 0.04);
-    mesh = new THREE.Mesh(new THREE.CylinderGeometry(r, r, h, 20), mat);
-    mesh.position.copy(toThree(cx, cy, (z0 + z1) / 2));
-  } else if (o.shape === 'sphere') {
-    const [cx, cy] = o.center || [0, 0];
-    const r = o.radius ?? 1;
-    const cz = (z0 + z1) / 2;
-    mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(r, 2), mat);
-    mesh.position.copy(toThree(cx, cy, cz));
-    if (o.kind === 'tree') {
-      const trunkTop = Math.max(0.5, cz - r * 0.6);
-      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.28, trunkTop, 10), MAT.trunk());
-      trunk.position.copy(toThree(cx, cy, trunkTop / 2));
-      trunk.castShadow = true; trunk.receiveShadow = true;
-      grp.add(trunk);
-    }
-  } else {
-    console.warn('unknown occluder shape', o);
-    return grp;
-  }
-  mesh.castShadow = (o.opacity ?? 1) >= 0.3; // clear glass must not throw a hard shadow
-  mesh.receiveShadow = (o.opacity ?? 1) >= 0.3;
-  grp.add(mesh);
-  if (o.kind === 'building' && !isProposal) {
-    const edges = new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry, 20), new THREE.LineBasicMaterial({ color: 0xf2f5f8, transparent: true, opacity: 0.85 }));
-    edges.position.copy(mesh.position); edges.rotation.copy(mesh.rotation);
-    grp.add(edges);
-  }
-  if (isProposal) {
-    const edges = new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry, 30), new THREE.LineBasicMaterial({ color: 0xffd23f }));
-    edges.position.copy(mesh.position); edges.rotation.copy(mesh.rotation);
-    grp.add(edges);
-  }
-  return grp;
-}
-
 function clearGroup(g) {
   while (g.children.length) {
     const c = g.children.pop();
-    c.traverse((n) => { n.geometry?.dispose?.(); if (n.material) { n.material.map?.dispose?.(); n.material.dispose?.(); } });
+    c.traverse((n) => {
+      n.geometry?.dispose?.();
+      if (n.material) {
+        if (Array.isArray(n.material)) n.material.forEach((m) => { m.dispose?.(); });
+        else { n.material.dispose?.(); }
+      }
+    });
   }
 }
 
@@ -270,16 +206,28 @@ function polyShape(poly) { return new THREE.Shape(poly.map(([x, y]) => new THREE
 
 function buildScene3D() {
   const s = state.scene;
+  if (!s) return;
   clearGroup(occGroup); clearGroup(overlayGroup); meshById.clear();
   heatMesh = null;
-  for (const o of s.occluders || []) { const g = buildOccluder(o); occGroup.add(g); meshById.set(o.id, g); }
+
+  // Align London streetscape corridor, Google Earth satellite terrain, bus cage, shelter substructure & passenger silhouettes to this scene
+  updateEnvironmentForScene(envState, s, toThree);
+
+  const allVisualOccluders = [...(s.occluders || []), ...(s.context_occluders || [])];
+  for (const o of allVisualOccluders) {
+    const g = buildDetailedOccluder(o, false, toThree);
+    occGroup.add(g);
+    meshById.set(o.id, g);
+  }
   setProposals3D(s.proposals || []);
 
-  // waiting area: filled + outline
+  // waiting area: subtle cyan architectural boundary + fill
   if (s.waiting_area?.length >= 3) {
-    const wa = new THREE.Mesh(new THREE.ShapeGeometry(polyShape(s.waiting_area)),
-      new THREE.MeshBasicMaterial({ color: 0x00e5ff, transparent: true, opacity: 0.18, depthWrite: false }));
-    wa.rotation.x = -Math.PI / 2; wa.position.y = 0.02;
+    const wa = new THREE.Mesh(
+      new THREE.ShapeGeometry(polyShape(s.waiting_area)),
+      new THREE.MeshBasicMaterial({ color: 0x00e5ff, transparent: true, opacity: 0.14, depthWrite: false })
+    );
+    wa.rotation.x = -Math.PI / 2; wa.position.y = 0.022;
     overlayGroup.add(wa);
     const pts = s.waiting_area.map(([x, y]) => toThree(x, y, 0.06));
     pts.push(pts[0].clone());
@@ -288,118 +236,41 @@ function buildScene3D() {
   if (s.buildable_area?.length >= 3) {
     const pts = s.buildable_area.map(([x, y]) => toThree(x, y, 0.05));
     pts.push(pts[0].clone());
-    const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),
-      new THREE.LineDashedMaterial({ color: 0xff7a3d, dashSize: 0.5, gapSize: 0.35 }));
+    const line = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(pts),
+      new THREE.LineDashedMaterial({ color: 0xff7a3d, dashSize: 0.5, gapSize: 0.35 })
+    );
     line.computeLineDistances();
     overlayGroup.add(line);
   }
-
-  // road: guess south of the waiting area (demo convention); pavement strip at its kerb
-  const wa = s.waiting_area || [[-3, -1], [3, 1]];
-  const minY = Math.min(...wa.map((p) => p[1]));
-  road.position.copy(toThree(0, minY - 6.5, 0.005));
-  pavement.position.copy(toThree(0, minY - 2.3, 0.008));
 
   sceneRadius = Math.min(80, Math.max(18, ...[...(s.occluders || []), ...(s.proposals || [])].map(occExtent)) + 4);
   const cam = sun.shadow.camera;
   cam.left = cam.bottom = -sceneRadius; cam.right = cam.top = sceneRadius;
   cam.near = 1; cam.far = sceneRadius * 6;
   cam.updateProjectionMatrix();
-  northLabel.position.copy(toThree(0, Math.min(sceneRadius - 2, 22), 0.6));
+  northLabel.position.copy(toThree(-14, Math.min(sceneRadius - 2, 18), 0.8));
   updateHeatmap();
-  loadSatGround(s);
 }
-
-// ---------------------------------------------------------------- real aerial ground (Esri World Imagery)
-const SAT_HALF = 60; // metres each side of the stop
-const satGround = new THREE.Mesh(new THREE.PlaneGeometry(SAT_HALF * 2, SAT_HALF * 2),
-  new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1 }));
-satGround.rotation.x = -Math.PI / 2;
-satGround.position.y = 0.002;
-satGround.receiveShadow = true;
-satGround.visible = false;
-scene3.add(satGround);
-const satCache = new Map();
-async function loadSatGround(s) {
-  satGround.visible = false; road.visible = pavement.visible = true;
-  $('satAttr').classList.add('hidden');
-  if (s.lat == null || s.lon == null) return;
-  const key = `${s.lat},${s.lon}`;
-  try {
-    if (!satCache.has(key)) satCache.set(key, satelliteCanvas(s.lat, s.lon, SAT_HALF, 19, 2048));
-    const cv = await satCache.get(key);
-    if (!cv) { satCache.delete(key); return; }
-    if (state.scene !== s) return;
-    const tex = new THREE.CanvasTexture(cv);
-    tex.colorSpace = THREE.SRGBColorSpace;
-    tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
-    satGround.material.map?.dispose?.();
-    satGround.material.map = tex; satGround.material.needsUpdate = true;
-    satGround.visible = true; road.visible = pavement.visible = false;
-    $('satAttr').classList.remove('hidden');
-  } catch (e) { console.warn('satellite ground failed', e); satCache.delete(key); }
-}
-
-// ---------------------------------------------------------------- patio-style diagnosis card
-const diag = { sceneKey: null, crop: null, shownFor: null };
-async function updateDiag() {
-  const s = state.scene, card = $('diagCard');
-  if (!s || !state.before) { card.classList.add('hidden'); return; }
-  const key = `${s.id}|${s.lat},${s.lon}`;
-  if (diag.sceneKey !== key) {
-    diag.sceneKey = key; diag.crop = null;
-    // zoom 19: Esri returns "Map data not yet available" placeholders at z20 in parts of London
-    satelliteCanvas(s.lat, s.lon, 20, 19, 512).then((cv) => { if (diag.sceneKey === key) { diag.crop = cv; drawDiagMap(); } }).catch(() => {});
-  }
-  const b = scoreOf(state.before);
-  const worst = state.before.worst_time;
-  const wb = worst ? state.before.by_time?.find((x) => x.t === worst) : null;
-  $('diagName').textContent = s.name || s.id;
-  $('diagSun').innerHTML = `Waiting area in direct sun <b class="hot">${Math.round(100 - b * 100)}%</b> of the day`;
-  $('diagWorst').innerHTML = worst ? `Worst: <b>${esc(worst)}</b>, ${wb ? Math.round(wb.shade * 100) : '--'}% shaded` : '';
-  const acc = state.accepted;
-  const a = scoreOf(state.after) ?? scoreOf(acc?.score_after);
-  $('diagAfter').innerHTML = acc && a != null ? `With verified design: <b class="cool">${pct(a)}</b> shaded${acc.cost_gbp != null ? ` • <b>£${Number(acc.cost_gbp).toLocaleString('en-GB')}</b> indicative` : ''}` : '';
-  $('diagAfter').classList.toggle('hidden', !(acc && a != null));
-  card.classList.remove('hidden');
-  drawDiagMap();
-  if (diag.shownFor !== key) { // first show: big postcard for 4 s, then dock
-    diag.shownFor = key;
-    card.classList.add('big');
-    clearTimeout(diag.timer);
-    diag.timer = setTimeout(() => card.classList.remove('big'), 4000);
-  }
-}
-function drawDiagMap() {
-  const cv = $('diagMap'), g = cv.getContext('2d'), W = cv.width, H = cv.height, s = state.scene;
-  g.fillStyle = '#3b4048'; g.fillRect(0, 0, W, H);
-  if (diag.crop) g.drawImage(diag.crop, 0, 0, W, H);
-  if (!s) return;
-  const P = (x, y) => [((x + 20) / 40) * W, ((20 - y) / 40) * H];
-  const sc = state.before;
-  if (sc?.cells?.length) {
-    const step = sc.grid_step || 0.5, w = (step / 40) * W;
-    g.globalAlpha = 0.7;
-    for (const c of sc.cells) { const [px, py] = P(c.x, c.y); const [r, gg, bb] = heatColor(c.shade); g.fillStyle = `rgb(${r},${gg},${bb})`; g.fillRect(px - w / 2, py - w / 2, w, w); }
-    g.globalAlpha = 1;
-  }
-  if (s.waiting_area?.length >= 3) {
-    g.strokeStyle = '#ffffff'; g.lineWidth = 3; g.beginPath();
-    s.waiting_area.forEach(([x, y], i) => { const [px, py] = P(x, y); i ? g.lineTo(px, py) : g.moveTo(px, py); });
-    g.closePath(); g.stroke();
-  }
-}
-$('diagCard').addEventListener('click', () => $('diagCard').classList.toggle('big'));
 
 function setProposals3D(list, highlight, material) {
   clearGroup(propGroup);
   const fallbackMat = material ?? state.accepted?.material;
   for (const p0 of list || []) {
     const p = { ...p0, material: p0.material ?? fallbackMat };
-    const g = buildOccluder(p, true);
-    if (highlight) g.traverse((n) => { if (n.material?.color && n.isMesh) { n.material.color.set(highlight); n.material.emissive?.set(0x220000); } });
+    const g = buildDetailedOccluder(p, true, toThree);
+    if (highlight) {
+      g.traverse((n) => {
+        if (n.material?.color && n.isMesh) {
+          n.material = n.material.clone();
+          n.material.color.set(highlight);
+          n.material.emissive?.set(0x3a0808);
+        }
+      });
+    }
     propGroup.add(g);
   }
+  setCanopyInstallProgress(propGroup, state.installProgress ?? 1.0, state.louverAngleDeg ?? 18);
   propGroup.visible = state.mode === 'after';
 }
 
@@ -439,8 +310,10 @@ function updateHeatmap() {
   g.putImageData(img, 0, 0);
   const tex = new THREE.CanvasTexture(cv);
   tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.NearestFilter; tex.colorSpace = THREE.SRGBColorSpace;
-  heatMesh = new THREE.Mesh(new THREE.PlaneGeometry(cols * step, rows * step),
-    new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }));
+  heatMesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(cols * step, rows * step),
+    new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 })
+  );
   heatMesh.rotation.x = -Math.PI / 2;
   heatMesh.position.copy(toThree((minX + maxX) / 2, (minY + maxY) / 2, 0.04));
   heatMesh.renderOrder = 2;
@@ -459,7 +332,6 @@ resize();
 // ---------------------------------------------------------------- sun / time
 function sunAt(hour) {
   const s = state.scene;
-  // server authority: by_time from the score response carries the engine's own sun angles
   const bt = state.before?.by_time;
   if (bt?.length && !state.playing) {
     const hit = bt.find((b) => Math.abs(parseClock(b.t) - hour) < 1 / 120);
@@ -478,9 +350,11 @@ function applySun(hour) {
   sun.position.copy(v.clone().multiplyScalar(sceneRadius * 3));
   sun.target.position.set(0, 0, 0);
   const up = sp.elevation > 0;
-  sun.intensity = up ? 2.6 * Math.min(1, 0.35 + sp.elevation / 25) : 0;
+  sun.intensity = up ? 3.0 * Math.min(1, 0.38 + sp.elevation / 25) : 0;
   sunBall.visible = up;
   sunBall.position.copy(v.clone().multiplyScalar(Math.min(70, sceneRadius * 1.6)));
+  envState?.updateAtmosphere?.(sp.elevation, sp.azimuth);
+
   $('clock').textContent = fmtClock(hour);
   $('sunAz').textContent = sp.azimuth.toFixed(0);
   $('sunEl').textContent = sp.elevation.toFixed(0);
@@ -510,6 +384,7 @@ function setupSlider() {
 }
 function hourFromSlider() { return (state.scene.hours?.[0] ?? 9) + Number(slider.value) / 4; }
 function setHour(hour) {
+  if (!state.scene) return;
   const h0 = state.scene.hours?.[0] ?? 9;
   slider.value = Math.round((hour - h0) * 4);
   applySun(hour);
@@ -517,6 +392,7 @@ function setHour(hour) {
 let sunFetchTimer = null;
 slider.addEventListener('input', () => {
   stopPlay();
+  if (demoCtrl?.active) demoCtrl.skipToInteractive();
   applySun(hourFromSlider());
   clearTimeout(sunFetchTimer);
   sunFetchTimer = setTimeout(fetchServerSun, 250);
@@ -537,6 +413,7 @@ let playLast = 0;
 function stopPlay() { state.playing = false; $('playBtn').classList.remove('on'); $('playBtn').innerHTML = '&#9654;'; }
 $('playBtn').addEventListener('click', () => {
   if (!state.scene) return;
+  if (demoCtrl?.active) demoCtrl.skipToInteractive();
   if (state.playing) { stopPlay(); setHour(Math.round(state.hour * 4) / 4); return; }
   state.playing = true; playLast = performance.now();
   $('playBtn').classList.add('on'); $('playBtn').innerHTML = '&#10074;&#10074;';
@@ -590,6 +467,7 @@ function drawChart() {
 // ---------------------------------------------------------------- scoring
 async function rescore() {
   const s = state.scene;
+  if (!s) return;
   $('scoreBefore').innerHTML = '<span class="spinner"></span>';
   $('scoreAfter').innerHTML = '<span class="spinner"></span>';
   const hasProps = (s.proposals || []).length > 0;
@@ -601,7 +479,6 @@ async function rescore() {
   state.before = b.status === 'fulfilled' ? b.value : null;
   state.after = a.status === 'fulfilled' ? a.value : null;
   if (b.status === 'rejected') {
-    // server engine offline: fall back to the in-browser ray caster so numbers still show
     toast('Scoring API unreachable (' + b.reason.message + '): using in-browser engine', 'info');
     try {
       state.before = scoreScene(s, false, computeSun);
@@ -610,9 +487,12 @@ async function rescore() {
   } else if (hasProps && a.status === 'rejected') {
     try { state.after = scoreScene(s, true, computeSun); } catch { /* leave blank */ }
   }
+  if (state.before) {
+    try { state.lastAudit = runPhysicsAudit(s, state.before, computeSun); } catch { /* ignore */ }
+  }
   renderScores();
   updateHeatmap();
-  if (state.before?.worst_time && !state.playing) setHour(parseClock(state.before.worst_time));
+  if (state.before?.worst_time && !state.playing && !demoCtrl?.active) setHour(parseClock(state.before.worst_time));
   else applySun(state.hour);
 }
 
@@ -630,11 +510,10 @@ function renderScores() {
   const sc = state.before;
   if (sc?.by_time) {
     const nCells = sc.cells?.length ?? '?';
-    $('verifierNote').innerHTML = `${sc._client ? '<b style="color:var(--yellow)">Server offline: in-browser ray caster.</b> ' : ''}Verified by deterministic engine: <b>${sc.by_time.length}</b> sun positions × <b>${nCells}</b> cells (${sc.grid_step ?? 0.5} m, ${sc.minutes_step ?? 15} min).`;
+    $('verifierNote').innerHTML = `${sc._client ? '<b style="color:var(--yellow)">Server offline: in-browser ray caster.</b> ' : ''}Verified by deterministic engine: <b>${sc.by_time.length}</b> sun positions × <b>${nCells}</b> cells (${sc.grid_step ?? 0.5} m, ${sc.minutes_step ?? 15} min, z = 1.2 m).`;
   } else $('verifierNote').textContent = 'Deterministic engine: sun position + ray casting.';
   drawChart();
   updateNowShade();
-  updateDiag();
 }
 
 // ---------------------------------------------------------------- provenance list
@@ -653,26 +532,21 @@ function renderOccList() {
 function flash(id) {
   const g = meshById.get(id) || propGroup.children.find((c) => c.userData.occ?.id === id);
   if (!g) return;
-  const mats = []; g.traverse((n) => { if (n.isMesh && n.material.emissive) mats.push([n.material, n.material.emissive.getHex()]); });
+  const mats = []; g.traverse((n) => { if (n.isMesh && n.material?.emissive) mats.push([n.material, n.material.emissive.getHex()]); });
   mats.forEach(([m]) => m.emissive.set(0xffd23f));
   setTimeout(() => mats.forEach(([m, hex]) => m.emissive.setHex(hex)), 900);
 }
 
 // ---------------------------------------------------------------- scene loading
-// street-level oblique view: ~25 m back (south), ~12 m up, looking at the waiting area
-function frameCamera(scene) {
-  const wa = scene.waiting_area?.length ? scene.waiting_area : [[0, 0]];
-  const cx = wa.reduce((a, p) => a + p[0], 0) / wa.length, cy = wa.reduce((a, p) => a + p[1], 0) / wa.length;
-  controls.target.copy(toThree(cx, cy, 1.2));
-  camera.position.copy(toThree(cx + 7, cy - 24, 12));
-  controls.update();
-}
-function loadScene(scene, { keepLog = false } = {}) {
+function loadScene(scene, { keepLog = false, skipRescore = false } = {}) {
   if (!scene || !Array.isArray(scene.occluders)) { toast('Scene JSON looks invalid'); return; }
   scene.hours = scene.hours || [9, 18];
   state.scene = scene;
-  state.before = state.after = null;
+  if (!skipRescore) {
+    state.before = state.after = null;
+  }
   state.serverSun = null;
+  state.installProgress = 1.0;
   $('sceneName').textContent = scene.name || scene.id || 'Scene';
   if (!keepLog) {
     $('proposeLog').innerHTML = '';
@@ -682,12 +556,19 @@ function loadScene(scene, { keepLog = false } = {}) {
   }
   $('photoResult').innerHTML = '';
   buildScene3D();
-  if (!keepLog) frameCamera(scene);
   setupSlider();
   renderOccList();
+  if (scene.proposals?.length) {
+    hudApi?.syncTunerFromProposal(scene.proposals[0]);
+  }
   const [h0, h1] = scene.hours;
   setHour(Math.min(h1, Math.max(h0, 15)));
   if (window.L && map && scene.lat != null) { map.setView([scene.lat, scene.lon], Math.max(map.getZoom(), 17)); }
+  if (skipRescore) {
+    renderScores();
+    updateHeatmap();
+    return Promise.resolve();
+  }
   return rescore();
 }
 
@@ -726,39 +607,46 @@ window.addEventListener('keydown', (e) => {
   if (e.key === ' ') { e.preventDefault(); $('playBtn').click(); }
 });
 
-// ---------------------------------------------------------------- Argon propose loop + Replay last run
-$('noLimit').addEventListener('change', () => { $('budgetInput').disabled = $('noLimit').checked; });
-
-function saveProposeRun(res, sceneId) {
+// ---------------------------------------------------------------- Argon propose loop + Verified Replay
+function getFallbackReplayForCurrentScene() {
   try {
-    const raw = JSON.stringify(res);
-    localStorage.setItem('shadowstop:lastPropose', raw);
-    if (sceneId) localStorage.setItem('shadowstop:lastPropose:' + sceneId, raw);
-  } catch (e) { console.warn('localStorage save failed', e); }
+    const saved = localStorage.getItem(LAST_PROPOSE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed?.attempts?.length && (!state.scene || parsed.scene_id === state.scene.id)) {
+        return { ...parsed, _replay: true, _replaySource: 'localStorage' };
+      }
+    }
+  } catch { /* ignore */ }
+  const id = String(state.scene?.id || '').toLowerCase();
+  if (id.includes('demo')) return structuredClone(REPLAY_DEMO_PROPOSE);
+  return structuredClone(REPLAY_HACKNEY_PROPOSE);
 }
 
-async function playProposeResponse(res, origProps, { isReplay = false } = {}) {
+async function renderProposeResult(res, { isReplay = false, fast = false } = {}) {
   const log = $('proposeLog');
-  state.materials = res.materials || {};
+  const origProps = state.scene?.proposals || [];
+  state.materials = res.materials || state.materials || {};
   state.budget = res.budget_gbp ?? state.budget;
   log.innerHTML = isReplay
-    ? '<div class="replay-banner"><span class="badge replay">REPLAY</span> Replaying saved /api/propose response from localStorage</div>'
+    ? '<div class="replay-banner-tag" style="margin-bottom:8px;padding:6px 10px;border-radius:6px;background:rgba(56,189,248,0.14);border:1px solid rgba(56,189,248,0.4);color:#7dd3fc;font-size:12px;font-weight:700;letter-spacing:0.04em;">↺ VERIFIED REPLAY — All scores &amp; counterexamples computed by deterministic engine.py</div>'
     : '';
   setMode('after');
   const attempts = res.attempts || [];
-  const stepScale = isReplay ? 0.45 : 1;
+  const stepDelay = fast ? 320 : 1150;
   for (let i = 0; i < attempts.length; i++) {
     const at = attempts[i];
     const props = Array.isArray(at.proposal) ? at.proposal : at.proposal ? [at.proposal] : [];
     const note = props.map((p) => p.note || `${p.kind} ${p.shape}`).join('; ') || 'proposal';
     const card = document.createElement('div');
     card.className = 'attempt';
-    card.innerHTML = `<div class="head"><span class="num">Attempt ${i + 1}${at.by ? ' · by ' + esc(at.by) : ''}${isReplay ? ' <span class="badge replay">REPLAY</span>' : ''}</span><span class="verdict pending"><span class="spinner"></span>VERIFYING</span></div>
+    card.innerHTML = `<div class="head"><span class="num">Attempt ${i + 1}${at.by ? ' · by ' + esc(at.by) : ''}${isReplay ? ' · REPLAY' : ''}</span><span class="verdict pending"><span class="spinner"></span>VERIFYING</span></div>
       <div class="note">${esc(note)}</div>`;
     log.appendChild(card);
+    state.installProgress = 1.0;
     setProposals3D(props, undefined, at.material);
     card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    await sleep(Math.round(1500 * stepScale));
+    await sleep(stepDelay);
     const sb = scoreOf(at.score_before), sa = scoreOf(at.score_after);
     card.classList.add(at.accepted ? 'accepted' : 'rejected');
     card.querySelector('.verdict').outerHTML = at.accepted ? '<span class="verdict ok">ACCEPTED</span>' : '<span class="verdict bad">REJECTED</span>';
@@ -769,27 +657,59 @@ async function playProposeResponse(res, origProps, { isReplay = false } = {}) {
       ${at.worst_time ? `<div class="cex">Counterexample: ${esc(at.worst_time)}</div>` : ''}`);
     if (!at.accepted) {
       setProposals3D(props, 0xc0392b, at.material);
-      if (at.worst_time) setHour(parseClock(at.worst_time)); // show the moment it fails
+      if (at.worst_time && !demoCtrl?.active) setHour(parseClock(at.worst_time));
     }
-    await sleep(Math.round((at.accepted ? 1200 : 2000) * stepScale));
+    await sleep(fast ? 260 : at.accepted ? 900 : 1400);
   }
   const acc = [...attempts].reverse().find((a) => a.accepted) || null;
-  state.accepted = acc; // set before loading final_scene so the proposal renders in its material
+  state.accepted = acc;
   if (res.final_scene) {
-    await loadScene(res.final_scene, { keepLog: true });
+    if (res.before && res.after) {
+      state.before = res.before;
+      state.after = res.after;
+      await loadScene(res.final_scene, { keepLog: true, skipRescore: true });
+    } else {
+      await loadScene(res.final_scene, { keepLog: true });
+    }
     setMode('after');
-    $('right').scrollTo({ top: 0, behavior: 'smooth' }); // land on the big verified numbers
-    toast(isReplay ? 'Replayed last verified run (localStorage)' : 'Verified fix loaded', 'info');
+    if (acc?.proposal) hudApi?.syncTunerFromProposal(Array.isArray(acc.proposal) ? acc.proposal[0] : acc.proposal);
+    if (!demoCtrl?.active) {
+      demoCtrl?.playInstallAnimationOnly?.(2100);
+    }
+    $('right').scrollTo({ top: 0, behavior: 'smooth' });
+    toast(isReplay ? 'Verified replay design installed' : 'Verified fix loaded', 'info');
   } else if (!acc) {
     setProposals3D(origProps);
   }
   state.attempts = attempts;
   state.accepted = acc;
   state.approved = null;
-  if (acc) addOperatorButtons(log.querySelectorAll('.attempt')[attempts.lastIndexOf(acc)]);
+  if (acc) {
+    const cards = log.querySelectorAll('.attempt');
+    addOperatorButtons(cards[attempts.lastIndexOf(acc)]);
+  }
   updateGate();
 }
 
+async function runReplayPropose({ fast = false } = {}) {
+  if (state.proposing) return;
+  state.proposing = true;
+  const btn = $('proposeBtn');
+  busy(btn, true, 'Replaying verified Argon loop…');
+  try {
+    const id = String(state.scene?.id || '').toLowerCase();
+    if (!state.scene || (!id.includes('demo') && !id.includes('469771287'))) {
+      await loadScene(structuredClone(HACKNEY_HERO_SCENE));
+    }
+    const replay = getFallbackReplayForCurrentScene();
+    await renderProposeResult(replay, { isReplay: true, fast });
+  } finally {
+    state.proposing = false;
+    busy(btn, false);
+  }
+}
+
+$('noLimit').addEventListener('change', () => { $('budgetInput').disabled = $('noLimit').checked; });
 $('proposeBtn').addEventListener('click', async () => {
   if (!state.scene || state.proposing) return;
   state.proposing = true;
@@ -805,35 +725,22 @@ $('proposeBtn').addEventListener('click', async () => {
     const bv = Number($('budgetInput').value);
     const budget_gbp = noLimit || !isFinite(bv) || bv <= 0 ? null : bv;
     const res = await api('/api/propose', { method: 'POST', body: { scene: state.scene, budget_gbp }, timeout: 120000 });
-    saveProposeRun(res, state.scene?.id);
-    await playProposeResponse(res, origProps, { isReplay: false });
-  } catch (e) {
-    log.innerHTML = '';
-    setProposals3D(origProps);
-    toast('Argon propose failed: ' + e.message);
-  } finally {
-    state.proposing = false;
-    busy(btn, false);
-  }
-});
-
-$('replayBtn')?.addEventListener('click', async () => {
-  if (state.proposing) return;
-  state.proposing = true;
-  const btn = $('replayBtn');
-  busy(btn, true, 'Replaying saved run…');
-  const origProps = state.scene?.proposals || [];
-  try {
-    const sceneKey = state.scene?.id ? 'shadowstop:lastPropose:' + state.scene.id : null;
-    let raw = (sceneKey && localStorage.getItem(sceneKey)) || localStorage.getItem('shadowstop:lastPropose');
-    let res = raw ? JSON.parse(raw) : null;
-    if (!res) {
-      res = await api('/scenes/_hero_prop.json', { timeout: 6000 });
-      saveProposeRun(res, res?.final_scene?.id);
+    const hasAccepted = (res.attempts || []).some((a) => a.accepted);
+    if (res.argon_error && !hasAccepted) {
+      toast('Live Gemini key unavailable — running engine-verified Argon replay', 'info');
+      const fallback = getFallbackReplayForCurrentScene();
+      await renderProposeResult(fallback, { isReplay: true });
+    } else {
+      try {
+        localStorage.setItem(LAST_PROPOSE_KEY, JSON.stringify({ ...res, scene_id: state.scene.id }));
+        hudApi?.setReplayAvailable?.(true);
+      } catch { /* ignore */ }
+      await renderProposeResult(res, { isReplay: false });
     }
-    await playProposeResponse(res, origProps, { isReplay: true });
   } catch (e) {
-    toast('No saved run to replay yet: ' + e.message);
+    toast('Live API unreachable — switching to engine-verified replay', 'info');
+    const fallback = getFallbackReplayForCurrentScene();
+    await renderProposeResult(fallback, { isReplay: true });
   } finally {
     state.proposing = false;
     busy(btn, false);
@@ -886,7 +793,6 @@ function renderBizCase() {
 // ---------------------------------------------------------------- human-in-control approval + council brief
 function updateGate() {
   renderBizCase();
-  if (typeof diag !== 'undefined' && state.before) updateDiag();
   const acc = !!state.accepted;
   $('approvalBox').classList.toggle('hidden', !acc && !state.approved);
   $('exportBtn').disabled = !state.approved;
@@ -960,24 +866,16 @@ function lightbox(src) {
   d.addEventListener('click', () => d.remove());
   document.body.appendChild(d);
 }
-
-async function getPhotoOrBundled(inputEl) {
-  if (inputEl?.files?.[0]) return inputEl.files[0];
-  const resp = await fetch('/assets/hackney_mare_street.jpg');
-  if (!resp.ok) throw new Error('Choose a street photo first');
-  const blob = await resp.blob();
-  return new File([blob], 'hackney_mare_street.jpg', { type: blob.type || 'image/jpeg' });
-}
-
 $('renderBtn').addEventListener('click', async () => {
+  const f = $('streetInput').files[0];
   if (!state.accepted) return toast('Needs an accepted Argon proposal first');
+  if (!f) return toast('Choose a street photo of the stop first');
   const btn = $('renderBtn');
   busy(btn, true, 'Nano Banana is rendering… (20–60 s)');
+  const fd = new FormData();
+  fd.append('photo', f);
+  fd.append('scene', JSON.stringify(state.scene));
   try {
-    const f = await getPhotoOrBundled($('streetInput'));
-    const fd = new FormData();
-    fd.append('photo', f);
-    fd.append('scene', JSON.stringify(state.scene));
     const r = await api('/api/render-fix', { method: 'POST', form: fd, timeout: 120000 });
     const orig = URL.createObjectURL(f);
     const out = `data:${r.mime || 'image/png'};base64,${r.image_b64}`;
@@ -1001,29 +899,28 @@ $('renderBtn').addEventListener('click', async () => {
 
 // ---------------------------------------------------------------- photo check
 $('photoBtn').addEventListener('click', async () => {
+  const f = $('photoInput').files[0];
   if (!state.scene) return toast('Load a scene first');
+  if (!f) return toast('Choose a photo first');
   const btn = $('photoBtn');
   busy(btn, true, 'Argon is reading the photo…');
+  const fd = new FormData();
+  fd.append('photo', f);
+  fd.append('scene', JSON.stringify(state.scene));
+  if ($('photoTime').value) fd.append('time', $('photoTime').value);
   const out = $('photoResult');
   try {
-    const f = await getPhotoOrBundled($('photoInput'));
-    const fd = new FormData();
-    fd.append('photo', f);
-    fd.append('scene', JSON.stringify(state.scene));
-    if ($('photoTime').value) fd.append('time', $('photoTime').value);
-    fd.append('fallback_time', fmtClock(state.hour));
-    fd.append('utc_offset', String(state.scene.utc_offset ?? 0));
     const r = await api('/api/photo-check', { method: 'POST', form: fd, timeout: 90000 });
     const url = URL.createObjectURL(f);
     const pts = r.points || [];
-    const agr = r.agreement ?? (pts.some((p) => p.agree != null) ? pts.filter((p) => p.agree).length / pts.filter((p) => p.agree != null).length : null);
+    const agr = r.agreement ?? (pts.length ? pts.filter((p) => p.agree).length / pts.length : null);
     const col = agr == null ? 'var(--muted)' : agr >= 0.75 ? 'var(--green)' : agr >= 0.5 ? 'var(--yellow)' : 'var(--red)';
     out.innerHTML = `<div class="photo-res">
       <img src="${url}" alt="photo">
       <div style="display:flex;align-items:baseline;gap:12px"><span class="agree" style="color:${col}">${pct(agr)}</span><span class="muted">agreement with the model</span></div>
-      <div class="small muted">Photo time ${esc(r.photo_time ?? '?')}${r.sun ? ` · sun az ${Number(r.sun.azimuth).toFixed(0)}° el ${Number(r.sun.elevation).toFixed(0)}°` : ''}${r.overcast ? ' · <span style="color:var(--yellow)">overcast photo</span>' : ''}</div>
+      <div class="small muted">Photo time ${esc(r.photo_time ?? '?')}${r.sun ? ` · sun az ${Number(r.sun.azimuth).toFixed(0)}° el ${Number(r.sun.elevation).toFixed(0)}°` : ''}</div>
       <table class="pts"><tr><th>Point</th><th>Photo</th><th>Model</th><th></th></tr>
-      ${pts.map((p) => `<tr title="${esc(p.evidence || '')}"><td>${esc(p.label)}</td><td>${esc(p.observed)}</td><td>${esc(p.predicted)}</td><td class="${p.agree == null ? 'muted' : p.agree ? 'y' : 'n'}">${p.agree == null ? '–' : p.agree ? '✓' : '✗'}</td></tr>`).join('')}
+      ${pts.map((p) => `<tr><td>${esc(p.label)}</td><td>${esc(p.observed)}</td><td>${esc(p.predicted)}</td><td class="${p.agree ? 'y' : 'n'}">${p.agree ? '✓' : '✗'}</td></tr>`).join('')}
       </table></div>`;
     if (r.photo_time) {
       const h = parseClock(String(r.photo_time).slice(-5).includes(':') ? String(r.photo_time).match(/(\d{1,2}:\d{2})/)?.[1] : r.photo_time);
@@ -1034,74 +931,63 @@ $('photoBtn').addEventListener('click', async () => {
   } finally { busy(btn, false); }
 });
 
-// ---------------------------------------------------------------- map + scan + postcode search
+// ---------------------------------------------------------------- map + scan
 let map = null;
 let stopLayer = null;
 function initMap() {
   if (!window.L) { $('map').innerHTML = '<div class="muted" style="padding:12px">Map library failed to load (offline?)</div>'; return; }
-  map = L.map('map', { zoomControl: true }).setView([51.545, -0.0553], 17);
-  const esri = L.tileLayer(ESRI_URL, { maxZoom: 20, maxNativeZoom: 19, attribution: ESRI_ATTR }).addTo(map);
-  const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' });
-  L.control.layers({ 'Satellite': esri, 'Map (OSM)': osm }, null, { position: 'topright' }).addTo(map);
+  map = L.map('map', { zoomControl: true }).setView([51.5450, -0.0554], 18);
+  L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+    maxZoom: 21,
+    attribution: '&copy; Google Earth Satellite &middot; OpenStreetMap',
+  }).addTo(map);
   stopLayer = L.layerGroup().addTo(map);
+  renderStopMarkersAndList(CACHED_HACKNEY_STOPS);
 }
 function scoreColor(v) {
-  // red (poor shade) -> green (good shade)
   const t = Math.max(0, Math.min(1, v ?? 0));
   return `hsl(${Math.round(t * 120)}, 85%, 50%)`;
 }
 
-async function runScan({ autoOpenWorst = false } = {}) {
-  if (!map) return toast('Map not available');
-  const btn = $('scanBtn');
-  const b = map.getBounds();
-  busy(btn, true, 'Scanning…');
-  try {
-    const q = new URLSearchParams({ south: b.getSouth().toFixed(6), west: b.getWest().toFixed(6), north: b.getNorth().toFixed(6), east: b.getEast().toFixed(6) });
-    const r = await api('/api/scan?' + q, { timeout: 150000 });
-    const stops = (r.stops || []).slice().sort((a, b) => (a.score ?? 1) - (b.score ?? 1));
+function renderStopMarkersAndList(stops) {
+  if (stopLayer) {
     stopLayer.clearLayers();
     for (const s of stops) {
       L.circleMarker([s.lat, s.lon], { radius: 9, color: '#0b0f14', weight: 2, fillColor: scoreColor(s.score), fillOpacity: 0.95 })
         .bindTooltip(`${s.name || s.id}: ${pct(s.score)} shade${s.shelter ? ' · shelter' : ''}`)
         .on('click', () => openStop(s)).addTo(stopLayer);
     }
-    const list = $('stopList');
-    list.innerHTML = stops.length ? '' : '<li class="muted">No bus stops found in view.</li>';
-    stops.forEach((s, i) => {
-      const li = document.createElement('li');
-      li.innerHTML = `<span class="rk">${i + 1}</span><span class="dot" style="background:${scoreColor(s.score)}"></span>
-        <span class="nm">${esc(s.name || s.id)}${s.shelter ? ' <span class="muted small">shelter</span>' : ''}</span><span class="sc">${pct(s.score)}</span>`;
-      li.addEventListener('click', () => openStop(s));
-      list.appendChild(li);
-    });
-    toast(`Found ${stops.length} stops`, 'info');
-    if (autoOpenWorst && stops.length) {
-      await openStop(stops[0]);
-    }
-  } catch (e) {
-    toast('Scan failed: ' + e.message);
-  } finally { busy(btn, false); }
+  }
+  const list = $('stopList');
+  if (!list) return;
+  list.innerHTML = stops.length ? '' : '<li class="muted">No bus stops found in view.</li>';
+  stops.forEach((s, i) => {
+    const li = document.createElement('li');
+    if (state.scene?.id === s.id) li.classList.add('active-stop');
+    li.innerHTML = `<span class="rk">${i + 1}</span><span class="dot" style="background:${scoreColor(s.score)}"></span>
+      <span class="nm">${esc(s.name || s.id)}${s.shelter ? ' <span class="muted small">shelter</span>' : ''}</span><span class="sc">${pct(s.score)}</span>`;
+    li.addEventListener('click', () => openStop(s));
+    list.appendChild(li);
+  });
 }
 
-$('scanBtn').addEventListener('click', () => runScan({ autoOpenWorst: false }));
-
-$('postcodeForm')?.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const q = ($('postcodeInput')?.value || '').trim();
-  if (!q) return toast('Enter a London postcode or area');
-  const btn = $('postcodeBtn');
-  busy(btn, true, '…');
+$('scanBtn').addEventListener('click', async () => {
+  if (!map) return toast('Map not available');
+  const btn = $('scanBtn');
+  const b = map.getBounds();
+  busy(btn, true, 'Scanning…');
+  hudApi?.showMapScanPulse?.(true);
   try {
-    const r = await api('/api/geocode?' + new URLSearchParams({ q }), { timeout: 12000 });
-    if (map) {
-      map.setView([r.lat, r.lon], 17);
-      await sleep(80);
-      await runScan({ autoOpenWorst: true });
-    }
-  } catch (err) {
-    toast('Postcode lookup failed: ' + err.message);
+    const q = new URLSearchParams({ south: b.getSouth().toFixed(6), west: b.getWest().toFixed(6), north: b.getNorth().toFixed(6), east: b.getEast().toFixed(6) });
+    const r = await api('/api/scan?' + q, { timeout: 60000 });
+    const stops = (r.stops || []).slice().sort((a, b) => (a.score ?? 1) - (b.score ?? 1));
+    renderStopMarkersAndList(stops);
+    toast(`Found ${stops.length} stops`, 'info');
+  } catch (e) {
+    renderStopMarkersAndList(CACHED_HACKNEY_STOPS);
+    toast('Showing pre-cached Hackney scan (' + CACHED_HACKNEY_STOPS.length + ' stops)', 'info');
   } finally {
+    hudApi?.showMapScanPulse?.(false);
     busy(btn, false);
   }
 });
@@ -1110,6 +996,10 @@ async function openStop(s) {
   toast(`Reconstructing ${s.name || s.id} in 3D…`, 'info');
   $('sceneName').innerHTML = `<span class="spinner"></span>Reconstructing ${esc(s.name || s.id)}…`;
   try {
+    if (s.id === 'osm-469771287') {
+      await loadScene(structuredClone(HACKNEY_HERO_SCENE));
+      return;
+    }
     const q = new URLSearchParams({ lat: s.lat, lon: s.lon, id: s.id });
     const scene = await api('/api/scene/from_osm?' + q, { timeout: 90000 });
     await loadScene(scene);
@@ -1126,18 +1016,185 @@ document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () 
   if (t.dataset.tab === 'map' && map) setTimeout(() => map.invalidateSize(), 50);
 }));
 
+// ---------------------------------------------------------------- Parametric Canopy Tuner + HUD + Hero Demo
+let tunerVerifyTimer = null;
+function handleTunerChange(params) {
+  if (!state.scene) return;
+  state.louverAngleDeg = params.louverAngleDeg;
+  if (!state.scene.proposals || !state.scene.proposals.length) {
+    state.scene.proposals = [{
+      id: 'canopy-tuned',
+      kind: 'canopy',
+      shape: 'box',
+      center: [0, -0.4],
+      size: [params.widthM, params.depthM],
+      rotation_deg: params.rotationDeg,
+      z0: params.heightZ0,
+      z1: params.heightZ0 + 0.25,
+      material: 'opaque_metal_roof',
+      opacity: computeLouverEffectiveOpacity(params.louverAngleDeg, 0.98),
+      source: 'proposal',
+      note: 'Interactive parametric louvered canopy',
+    }];
+  } else {
+    const p = state.scene.proposals[0];
+    p.size = [params.widthM, params.depthM];
+    p.rotation_deg = params.rotationDeg;
+    const oldThickness = Math.max(0.18, (p.z1 ?? p.z0 + 0.2) - (p.z0 ?? 2.4));
+    p.z0 = params.heightZ0;
+    p.z1 = params.heightZ0 + oldThickness;
+    p.louver_angle_deg = params.louverAngleDeg;
+    p.opacity = computeLouverEffectiveOpacity(params.louverAngleDeg, 0.96);
+  }
+  setMode('after');
+  state.installProgress = 1.0;
+  setProposals3D(state.scene.proposals);
+  setCanopyLouverAngle(propGroup, params.louverAngleDeg);
+
+  // Instant client-side ray-cast score for responsive slider feel
+  try {
+    state.after = scoreScene(state.scene, true, computeSun);
+    renderScores();
+    updateHeatmap();
+  } catch { /* ignore */ }
+
+  // Debounced server-side authoritative verification
+  clearTimeout(tunerVerifyTimer);
+  tunerVerifyTimer = setTimeout(async () => {
+    try {
+      const a = await api('/api/score', { method: 'POST', body: { scene: state.scene, include_proposals: true }, timeout: 10000 });
+      state.after = a;
+      renderScores();
+      updateHeatmap();
+    } catch { /* client score already shown */ }
+  }, 350);
+}
+
+demoCtrl = createDemoController({
+  camera,
+  controls,
+  scene3,
+  getState: () => state,
+  setMode,
+  setHeat: (on) => {
+    state.heat = !!on;
+    $('heatBtn').classList.toggle('on', state.heat);
+    updateHeatmap();
+  },
+  setHour,
+  setInstallProgress: (p) => {
+    state.installProgress = p;
+    setCanopyInstallProgress(propGroup, p, state.louverAngleDeg ?? 18);
+  },
+  focusMapOnStop: () => {
+    if (map && state.scene?.lat != null) {
+      map.flyTo([state.scene.lat, state.scene.lon], 18, { duration: 1.0 });
+    }
+  },
+  ensureHeroSceneLoaded: async () => {
+    renderStopMarkersAndList(CACHED_HACKNEY_STOPS);
+    const replay = structuredClone(REPLAY_HACKNEY_PROPOSE);
+    state.materials = replay.materials || {};
+    state.budget = replay.budget_gbp ?? 8000;
+    state.before = replay.before;
+    state.after = replay.after;
+    state.attempts = replay.attempts;
+    state.accepted = replay.accepted;
+    await loadScene(replay.final_scene, { keepLog: true, skipRescore: true });
+    // Populate the Argon log cards cleanly
+    const log = $('proposeLog');
+    log.innerHTML = '';
+    replay.attempts.forEach((at, i) => {
+      const props = Array.isArray(at.proposal) ? at.proposal : [at.proposal];
+      const note = props.map((p) => p.note || `${p.kind} ${p.shape}`).join('; ');
+      const sb = scoreOf(at.score_before), sa = scoreOf(at.score_after);
+      const card = document.createElement('div');
+      card.className = 'attempt ' + (at.accepted ? 'accepted' : 'rejected');
+      card.innerHTML = `<div class="head"><span class="num">Attempt ${i + 1} · by ${esc(at.by)}</span><span class="verdict ${at.accepted ? 'ok' : 'bad'}">${at.accepted ? 'ACCEPTED' : 'REJECTED'}</span></div>
+        <div class="note">${esc(note)}</div>
+        <div class="nums"><span style="color:var(--red)">${pct(sb)}</span> → <span style="color:${at.accepted ? 'var(--green)' : 'var(--red)'}">${pct(sa)}</span></div>
+        ${costLine(at)}
+        ${at.reason ? `<div class="reason">${esc(at.reason)}</div>` : ''}
+        ${at.worst_time ? `<div class="cex">Counterexample: ${esc(at.worst_time)}</div>` : ''}`;
+      log.appendChild(card);
+      if (at.accepted) addOperatorButtons(card);
+    });
+    updateGate();
+  },
+  onPhaseChange: (_idx, phaseObj, progress, status) => {
+    hudApi?.updateCinematicBanner?.(phaseObj, progress, status);
+  },
+});
+
+hudApi = initHUD({
+  getState: () => state,
+  onRunHeroDemo: () => {
+    stopPlay();
+    demoCtrl.start();
+  },
+  onSkipHeroDemo: () => demoCtrl.skipToInteractive(),
+  onResetHeroDemo: () => demoCtrl.reset(),
+  onReplayPropose: () => runReplayPropose(),
+  onResizeView: () => {
+    resize();
+    drawChart();
+    map?.invalidateSize();
+  },
+  onPostcodeJump: (loc) => {
+    if (map && loc) {
+      map.flyTo([loc.lat, loc.lon], loc.zoom || 17, { duration: 0.9 });
+      setTimeout(() => $('scanBtn')?.click(), 950);
+    }
+  },
+  onTunerChange: handleTunerChange,
+});
+
 // ---------------------------------------------------------------- render loop + boot
 function frame(now) {
   requestAnimationFrame(frame);
-  tickPlay(now);
-  controls.update();
+  if (demoCtrl?.active) {
+    demoCtrl.tick(now);
+  } else {
+    tickPlay(now);
+    controls.update();
+  }
   renderer.render(scene3, camera);
 }
 requestAnimationFrame(frame);
 window.addEventListener('resize', () => { drawChart(); map?.invalidateSize(); });
 
 initMap();
-loadDemo();
+// Boot directly onto the Hackney Town Hall Hero Stop with its verified Argon canopy so judges immediately see a real London stop + transformation
+(async () => {
+  const replay = structuredClone(REPLAY_HACKNEY_PROPOSE);
+  state.materials = replay.materials || {};
+  state.budget = replay.budget_gbp ?? 8000;
+  state.before = replay.before;
+  state.after = replay.after;
+  state.attempts = replay.attempts;
+  state.accepted = replay.accepted;
+  await loadScene(replay.final_scene, { keepLog: true, skipRescore: true });
+  const log = $('proposeLog');
+  if (log) {
+    log.innerHTML = '';
+    replay.attempts.forEach((at, i) => {
+      const props = Array.isArray(at.proposal) ? at.proposal : [at.proposal];
+      const note = props.map((p) => p.note || `${p.kind} ${p.shape}`).join('; ');
+      const sb = scoreOf(at.score_before), sa = scoreOf(at.score_after);
+      const card = document.createElement('div');
+      card.className = 'attempt ' + (at.accepted ? 'accepted' : 'rejected');
+      card.innerHTML = `<div class="head"><span class="num">Attempt ${i + 1} · by ${esc(at.by)}</span><span class="verdict ${at.accepted ? 'ok' : 'bad'}">${at.accepted ? 'ACCEPTED' : 'REJECTED'}</span></div>
+        <div class="note">${esc(note)}</div>
+        <div class="nums"><span style="color:var(--red)">${pct(sb)}</span> → <span style="color:${at.accepted ? 'var(--green)' : 'var(--red)'}">${pct(sa)}</span></div>
+        ${at.reason ? `<div class="reason">${esc(at.reason)}</div>` : ''}
+        ${at.worst_time ? `<div class="cex">Counterexample: ${esc(at.worst_time)}</div>` : ''}`;
+      log.appendChild(card);
+      if (at.accepted) addOperatorButtons(card);
+    });
+  }
+  setMode('after');
+  updateGate();
+})();
 
 // handy for debugging on stage
-window.shadowstop = { state, loadScene, computeSun, setHour };
+window.shadowstop = { state, loadScene, computeSun, setHour, demoCtrl, runReplayPropose };
