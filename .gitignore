@@ -3,3 +3,5 @@ __pycache__/
 .pytest_cache/
 .env
 scenes/_*
+# Esri aerial used only for local film renders (not redistributed)
+web/assets/hackney_aerial.*
