@@ -64,6 +64,11 @@
       ],
     },
   });
+  // ready as soon as the style JSON is parsed (addSource works); don't wait for every tile / first render
+  const mapReady = new Promise((r) => {
+    map.once('load', r);
+    const iv = setInterval(() => { if (map.style && map.style._loaded) { clearInterval(iv); r(); } }, 100);
+  });
   let simHour = 13;
   function setSun(az, el, label) {
     try { map.setLight({ anchor: 'map', position: [1.5, az, Math.max(5, Math.min(89, 90 - el))], color: '#fff4e0', intensity: 0.55 }); } catch { /* ignore */ }
@@ -423,6 +428,7 @@
   let running = false;
   async function runSequence(stop, { demo = false } = {}) {
     if (running) return; running = true;
+    await mapReady;
     for (const id of ['stats', 'photo', 'argon']) $(id).style.display = 'none';
     clearLog(); clearOverlays(); grid = gridAfter = null; dailyOn = false; $('dailyBtn').classList.remove('on');
     orbiting = false;
@@ -489,8 +495,8 @@
         gridAfter = await hgA;
         $('argon').style.display = 'none';
         // wipe before -> after on the daily map
-        const g = gridAfter, o = { c: 0 };
-        await new Promise((r) => gsap.to(o, { c: g.nx, duration: 2.4, ease: 'power2.inOut', onUpdate: () => drawGrid(grid.daily, g, g.daily, Math.round(o.c)), onComplete: r }));
+        const g = gridAfter;
+        for (let c = 0; c <= g.nx; c += 2) { drawGrid(grid.daily, g, g.daily, c); await sleep(2400 / (g.nx / 2)); } // timer-driven wipe (works even if rAF is throttled)
         orbiting = true;
         summarize(gridAfter);
         await playDay(gridAfter, 10, { gB: grid, label: 'AFTER · verified design, same day, same sun' });
@@ -534,7 +540,7 @@
   });
   addEventListener('keydown', (e) => { if (e.key === 'Escape') { $('stats').style.display = 'none'; $('photo').style.display = 'none'; } });
 
-  map.on('load', async () => {
+  mapReady.then(async () => {
     try { if (map.setSky) map.setSky({ 'sky-color': '#9fc8ec', 'horizon-color': '#f3dcc0', 'fog-color': '#d9e4ee', 'sky-horizon-blend': 0.6, 'horizon-fog-blend': 0.6, 'fog-ground-blend': 0.85 }); } catch { /* optional */ }
     setSimHour(13);
     try { await scan(HACKNEY_BOX, 25, 'Hackney (cached)'); } catch (e) { log('Hackney preload failed: ' + e.message, 'err'); }
