@@ -1,0 +1,10 @@
+.git
+.gitignore
+**/__pycache__
+**/*.pyc
+.pytest_cache
+.env
+.env.*
+showcase-tools/node_modules
+showcase-tools/out*
+scenes/_*
