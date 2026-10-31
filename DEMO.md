@@ -20,7 +20,7 @@
 
 **Likely judge questions:**
 - *"How do you know the shade numbers are right?"*
-  - 17 known-answer tests: the solstice sun angle, a 3 m pole casting a 3 m shadow at 45°, low sun slipping under a roof, glass vs solid.
+  - Known-answer tests: the solstice sun angle, a 3 m pole casting a 3 m shadow at 45°, low sun slipping under a roof, glass vs solid.
   - The photo check compares predicted sun/shade with a real timestamped photo.
   - The verifier contains no model calls.
 - *"Why do you need Argon if the verifier does the maths?"*

@@ -22,7 +22,7 @@ A TfL / borough bus-infrastructure officer deciding which shelters to upgrade, f
 | `shadowstop/server.py` | FastAPI: `/api/health`, `/api/sun`, `/api/score`, `/api/scene/demo`, `/api/scene/from_osm`, `/api/scan`, `/api/propose` (body `{scene, budget_gbp}`), `/api/read-scene`, `/api/photo-check`, `/api/render-fix`; serves `web/` at `/` |
 | `web/` | Static Three.js 0.160 + Leaflet 1.9.4 app (no build step): map and scan, 3D scene, time slider, before/after, heatmap, verification panel, Argon attempt log, budget, business case, render panel, approve/export, photo check. `web/engine.js` is an in-browser fallback scorer used only if the server is down (labelled on screen) |
 | `scenes/demo.json` | Rehearsed synthetic scene (glass shelter). The Hackney stop is built live from OSM |
-| `tests/test_engine.py` | 17 known-answer tests (solstice sun angle, a pole's shadow length, roof vs low sun, glass, tree, buildings, constraints) |
+| `tests/test_engine.py` | Known-answer tests (solstice sun angle, a pole's shadow length, roof vs low sun, glass, tree, buildings, constraints) |
 | `SCENE_SCHEMA.md` | Scene JSON format: local metres, x = east, y = north, z = up |
 
 ## Run
