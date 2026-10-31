@@ -2,6 +2,8 @@
 
 **Find the bus stops that leave people standing in the sun, and design shade that's proven to work.**
 
+![ShadowStop](docs/screenshot.png)
+
 On a heatwave day, people waiting for a bus stand in full sun, often under a "shelter" with a clear roof. ShadowStop scans every stop in an area, rebuilds each stop in 3D from OpenStreetMap plus Gemini 4 Argon's reading of street photos, and computes how much of the waiting area is actually shaded through the day. Argon then designs a canopy or tree, and **a deterministic geometry engine accepts or rejects every design**. Nothing on screen is a generated picture of success: every number is ray-cast from the real sun position.
 
 [![tests](https://github.com/resenorlando/shadowstop/actions/workflows/tests.yml/badge.svg)](https://github.com/resenorlando/shadowstop/actions/workflows/tests.yml)
@@ -18,6 +20,13 @@ On a heatwave day, people waiting for a bus stand in full sun, often under a "sh
 - **Ray casting:** from each grid point a ray goes toward the sun and is tested against buildings, shelters and canopies (prisms) and tree crowns (ellipsoids); partial opacity lets some light through (e.g. glass roofs).
 - **Accept rules:** at least +25 points of daily shade, at least 40% of the waiting area shaded at the worst sun-up moment, buildable (underside 2.3–4.5 m, ≤ 24 m², inside the buildable zone, not in a building) and within budget.
 - **Counterexample:** a rejection names the worst time with the sun's azimuth, elevation and shade %, and that goes back to Argon to redesign; no model output ever sets a score, cost or opacity.
+
+## How the verifier works
+1. **Grid & sun steps:** Samples the waiting-area polygon on a 0.5 m grid at torso height (`z = 1.2 m`) across 37 timestamps (09:00–18:00 at 15-minute intervals) using NOAA solar azimuth and refraction-corrected elevation (`shadowstop/sun.py`).
+2. **Vectorised ray casting:** Casts rays from every grid point toward the sun through all 3D prisms, cylinders, and ellipsoid tree crowns (`shadowstop/geometry.py`), combining partial opacities as $1 - \prod (1 - \alpha_i)$ from the fixed material catalogue (`shadowstop/materials.py`).
+3. **Buildability & geometry checks:** Rejects any proposal that falls outside `buildable_area`, overlaps a building, exceeds 24 m² or 3.5 m crown radius, violates clearance (`z0` in 2.3–4.5 m), or exceeds the operator's £ budget (`shadowstop/engine.py`).
+4. **Performance gates:** Requires at least **+25 percentage points** of daily shade gain and at least **40% shade at the worst 15-minute step** (when sun elevation > 10°).
+5. **Counterexample feedback loop:** Returns the exact failing timestamp, sun azimuth/elevation, and shade percentage to Gemini 4 Argon (chained via `previous_interaction_id`) until a design passes every check.
 
 ## How it works
 ```
@@ -42,12 +51,16 @@ Street photos ─┘   ▲                     │
 
 **The rule: Argon reads and proposes; the verifier decides.** A proposal is accepted only if it:
 - adds at least **+25 points** of shade over the day;
-- keeps at least **40%** of the waiting area shaded at the worst moment;
+- keeps at least **40%** of the waiting area shaded at the worst moment of the **11:00–16:00 peak-heat window** (low 09:00/18:00 sun comes in sideways and no single roof can block both);
 - fits buildability limits: underside 2.3–4.5 m, area ≤ 24 m², inside the pavement zone, not inside a building.
 
 A rejected proposal goes back to Argon with the counterexample (time, sun azimuth and elevation, shade %).
 
+<<<<<<< Updated upstream
 Argon is called through the **Interactions API** (`thinking_level` from env `SHADOWSTOP_THINKING`, default `low` for demo speed). Each retry is chained with `previous_interaction_id`, so Argon keeps its own earlier reasoning server-side while it reads the verifier's objections. If the Interactions call fails, it falls back to `generate_content` so a live demo never stalls. The photo images Nano Banana returns are illustrations; **every shade number comes from the verifier, not from a picture.**
+=======
+Argon is called through the **Interactions API** (`thinking_level="low"` default, configurable via `SHADOWSTOP_THINKING`). Each retry is chained with `previous_interaction_id`, so Argon keeps its own earlier reasoning server-side while it reads the verifier's objections. If the Interactions call fails, it falls back to `generate_content` so a live demo never stalls. The photo images Nano Banana returns are illustrations; **every shade number comes from the verifier, not from a picture.**
+>>>>>>> Stashed changes
 
 ## Run it
 ```bash
@@ -85,6 +98,7 @@ Cloud Run (the container honours `$PORT`): `gcloud run deploy shadowstop --sourc
 | Endpoint | What it does |
 |---|---|
 | `GET /api/scan?south&west&north&east` | Every bus stop in the box with a baseline shade score, worst first |
+| `GET /api/geocode?q` | Resolves a London postcode or area name to `{lat, lon, name}` |
 | `GET /api/scene/from_osm?lat&lon` | Builds the 3D scene for one stop |
 | `GET /api/scene/demo` | The rehearsed demo scene |
 | `POST /api/score {scene, include_proposals}` | Shade score, by time of day, heat-map cells, worst time |

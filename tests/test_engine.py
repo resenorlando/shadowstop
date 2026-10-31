@@ -136,3 +136,29 @@ def test_heatgrid_open_ground_is_full_sun_and_buildings_are_masked():
     assert frame[j * h["nx"] + i] == 100
     i = h["xs"].index(15.0); j = h["ys"].index(15.0)      # inside the building footprint
     assert frame[j * h["nx"] + i] == -1
+
+
+
+def test_london_postcode_preset_lookup():
+    from shadowstop.osm import geocode_london
+    g = geocode_london("E8 1EA")
+    assert abs(g["lat"] - 51.545) < 0.01 and abs(g["lon"] - (-0.0553)) < 0.01
+    brixton = geocode_london("SW9 8PS")
+    assert abs(brixton["lat"] - 51.4626) < 0.01
+
+
+def test_hackney_town_hall_protected_verdicts():
+    hero_prop = json.loads((ROOT / "scenes" / "_hero_prop.json").read_text(encoding="utf-8"))
+    sc = dict(hero_prop["final_scene"], proposals=[])
+    # Obvious fix is rejected (0% shade at 09:00)
+    obvious = hero_prop["attempts"][0]["proposal"]
+    v0 = evaluate(sc, obvious, budget_gbp=8000)
+    assert not v0["accepted"]
+    assert v0["worst_time"] == "09:00" and v0["worst_time_shade"] == 0.0
+    # Accepted design reaches ~77% shade at £3,350 indicative
+    accepted = hero_prop["attempts"][-1]["proposal"]
+    va = evaluate(sc, accepted, budget_gbp=8000)
+    assert va["accepted"]
+    assert round(va["score_before"] * 100) == 14
+    assert round(va["score_after"] * 100) == 77
+    assert va["cost_gbp"] == 3350.0
