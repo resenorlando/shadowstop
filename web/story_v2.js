@@ -5,7 +5,7 @@
 //  0-5   real photo of the stop, waiting area marked
 //  5-11  London map fly-in to Hackney, the real scanned stops (assets/hackney_scan.json)
 //  11-19 3D BEFORE, sun moves 09:00-18:00, verified 14%
-//  19-27 two rejected designs and why (obvious roof shown in 3D at its 09:00 counterexample)
+//  19-27 two rejected designs and why (obvious roof shown in 3D at the counterexample time in hero.json)
 //  27-38 Argon's accepted shade-sail builds, sun sweeps, shadow moves
 //  38-47 identical camera before | after, verified 14% -> 77%
 //  47-55 hero view, £3,350 indicative, ShadowStop
@@ -17,6 +17,13 @@
   const tw = (t, v) => new Promise((r) => gsap.to(t, { ...v, onComplete: r }));
   const pct = (v) => Math.round(v * 100) + '%';
   const gbp = (v) => '£' + Number(v).toLocaleString('en-GB', { maximumFractionDigits: 0 });
+  // the verifier's own counterexample, parsed from its recorded reason text (hero.json attempts)
+  const COMPASS = ['north', 'north-east', 'east', 'south-east', 'south', 'south-west', 'west', 'north-west'];
+  function cex(reason) {
+    const m = /at (\d\d):(\d\d) \(sun az (\d+) deg, el (\d+) deg\) only (\d+)%/.exec(String(reason || ''));
+    if (!m) return null;
+    return { t: `${m[1]}:${m[2]}`, h: +m[1] + +m[2] / 60, az: +m[3], el: +m[4], shade: +m[5], from: COMPASS[Math.round(+m[3] / 45) % 8] };
+  }
   const fmt = (h) => { const hh = Math.floor(h + 1e-6), mm = Math.round((h - hh) * 60); return `${String(hh).padStart(2, '0')}:${String(mm % 60).padStart(2, '0')}`; };
 
   // ---------- stage scaling
@@ -200,7 +207,9 @@
     gsap.to('#hold', { opacity: 0, duration: 0.35 });
 
     // 19-27 s: two rejected designs ---------------------------------------------------
-    X.set({ mode: 'obvious', hour: 9, waGlow: 1 });
+    const c1 = cex(obvious?.reason) || { t: '15:30', h: 15.5, az: 236, el: 49, shade: 24, from: 'south-west' };
+    const c2 = cex(argonRejected?.reason) || { t: '18:00', h: 18, az: 271, el: 26, shade: 13, from: 'west' };
+    X.set({ mode: 'obvious', hour: c1.h, waGlow: 1 });
     camTo({ px: 7.5, py: -13.5, pz: 9, tx: -0.6, ty: 0.8, tz: -1.4, fov: 40 }, 1.2);
     gsap.to('#scrim', { opacity: 1, duration: 0.6 });
     gsap.to('#loop', { opacity: 1, duration: 0.6 });
@@ -214,18 +223,18 @@
     const on = (id) => ['l1', 'l2', 'l3'].forEach((k) => $(k).classList.toggle('on', k === id));
     on('l1');
     showAtt(1, 'the obvious fix', `Make the roof solid metal · ${gbp(obvious?.cost_gbp ?? 4290)} indicative`,
-      'At <b>09:00</b> the sun is 34° high in the east: the roof\'s shadow falls behind the shelter. <b>0%</b> of the waiting area is shaded.',
-      `Whole day only ${pct(obvious?.score_after ?? 0.28)} shaded: below the +25-point bar.`, false);
+      `At <b>${c1.t}</b>, in peak heat, the sun is ${c1.el}° high from the ${c1.from}: the small roof's shadow misses most of the queue. Only <b>${c1.shade}%</b> shaded.`,
+      `Whole day only ${pct(obvious?.score_after ?? 0.28)} shaded: below the +25-point bar. (Shown in 3D at ${c1.t}.)`, false);
     await wait(1.6); on('l2');
     await wait(2.0); on('l3');
     gsap.to(att, { opacity: 0, x: -40, duration: 0.35 });
     await wait(0.4);
     // Argon's first sail: its geometry wasn't saved, so we show the counterexample moment on the existing stop
     X.set({ mode: 'before' });
-    sweep('before', 9, 18, 1.4, () => {});
+    sweep('before', c1.h, c2.h, 1.4, () => {});
     showAtt(2, 'Gemini 4 Argon', `Tensioned shade-sail · ${gbp(argonRejected?.cost_gbp ?? 3360)} indicative`,
-      'At <b>18:00</b> the sun is only 26° high, from the west: it slides under the sail. <b>13%</b> shaded.',
-      'Verifier sends back the exact failing time and sun angle (shown: the stop at 18:00). Argon redesigns.', false);
+      `At <b>${c2.t}</b> the sun is only ${c2.el}° high, from the ${c2.from}: it slides under the sail. <b>${c2.shade}%</b> shaded.`,
+      `Recorded run: the verifier sent this time and sun angle back to Argon (shown: the existing stop at ${c2.t}). Argon redesigned.`, false);
     on('l3');
     await wait(3.6);
 
