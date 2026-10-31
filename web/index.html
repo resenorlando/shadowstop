@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ShadowStop</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+<header id="topbar">
+  <div class="brand"><span class="logo">&#9728;</span> Shadow<b>Stop</b></div>
+  <div id="sceneName" class="scene-name">No scene loaded</div>
+  <div class="top-actions">
+    <div class="seg" id="baToggle">
+      <button data-mode="before">Before</button>
+      <button data-mode="after" class="on">After</button>
+    </div>
+    <button id="heatBtn" class="ghost on" title="Toggle shade heatmap">Heatmap</button>
+  </div>
+</header>
+
+<main id="layout">
+  <!-- LEFT -->
+  <aside id="left" class="panel">
+    <div class="tabs">
+      <button class="tab on" data-tab="map">Map</button>
+      <button class="tab" data-tab="about">How it works</button>
+    </div>
+    <div class="tab-body" id="tab-map">
+      <div id="map"></div>
+      <div class="row">
+        <button id="scanBtn" class="primary">Scan this area</button>
+        <button id="demoBtn">Load demo</button>
+      </div>
+      <h3 class="sub">Worst shade first</h3>
+      <ol id="stopList" class="stop-list"><li class="muted">Scan the map to rank nearby bus stops.</li></ol>
+    </div>
+    <div class="tab-body hidden" id="tab-about">
+      <ol class="how">
+        <li><b>Find</b> bus stops from OpenStreetMap and rank them by shade.</li>
+        <li><b>Reconstruct</b> the stop in 3D: OSM buildings + Argon-inferred shelter, trees, glass.</li>
+        <li><b>Propose</b>: Argon suggests a canopy or tree.</li>
+        <li><b>Verify</b>: a deterministic engine (sun position + ray casting) scores shade over the whole day. Nothing is just generated.</li>
+        <li><b>Photo check</b>: compare a real photo's sun/shade against the model.</li>
+      </ol>
+    </div>
+  </aside>
+
+  <!-- CENTRE -->
+  <section id="centre">
+    <div id="view">
+      <div id="viewOverlay" class="view-overlay">
+        <div class="now-shade"><span class="lbl">Shade now</span> <span id="nowShade">--</span></div>
+        <div id="modeBadge" class="mode-badge after">AFTER</div>
+      </div>
+      <div id="legend" class="legend">
+        <span>daily shade</span><div class="grad"></div><span class="l0">0%</span><span class="l1">100%</span>
+      </div>
+    </div>
+    <div id="timebar">
+      <button id="playBtn" class="play" title="Play the day">&#9654;</button>
+      <div class="clock" id="clock">--:--</div>
+      <input id="timeSlider" type="range" min="0" max="36" step="1" value="0">
+      <div class="sunread"><div>Sun az <b id="sunAz">--</b>&deg;</div><div>el <b id="sunEl">--</b>&deg;</div><div id="sunSrc" class="muted small">client</div></div>
+    </div>
+  </section>
+
+  <!-- RIGHT -->
+  <aside id="right" class="panel">
+    <h2 class="sec">Verified shade <span class="muted small">(waiting-area hours in shade)</span></h2>
+    <div class="scores">
+      <div class="score before"><div class="lbl">BEFORE</div><div class="big" id="scoreBefore">--</div></div>
+      <div class="arrow">&rarr;</div>
+      <div class="score after"><div class="lbl">AFTER</div><div class="big" id="scoreAfter">--</div></div>
+    </div>
+    <div class="delta-row"><span id="scoreDelta" class="delta">&nbsp;</span><span id="worstTime" class="muted"></span></div>
+    <div class="verifier-note" id="verifierNote">Deterministic engine: sun position + ray casting.</div>
+    <canvas id="chart" height="150"></canvas>
+    <div class="chart-legend"><span class="sw red"></span>before <span class="sw green"></span>after</div>
+
+    <h2 class="sec">Argon proposal loop</h2>
+    <button id="proposeBtn" class="primary wide">&#10024; Ask Argon to fix it</button>
+    <div id="proposeLog" class="log"></div>
+
+    <h2 class="sec">Photo check</h2>
+    <div class="photo-form">
+      <input id="photoInput" type="file" accept="image/*">
+      <label class="small">Time (optional) <input id="photoTime" type="time"></label>
+      <button id="photoBtn">Check photo</button>
+    </div>
+    <div id="photoResult"></div>
+
+    <h2 class="sec">Scene provenance <span class="muted small">observed vs inferred</span></h2>
+    <ul id="occList" class="occ-list"></ul>
+  </aside>
+</main>
+
+<div id="toasts"></div>
+<script type="module" src="app.js"></script>
+</body>
+</html>

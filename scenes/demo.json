@@ -1,0 +1,34 @@
+{
+  "id": "demo-glass-shelter",
+  "name": "Demo stop: glass shelter on an east-west street",
+  "lat": 51.5450,
+  "lon": -0.0553,
+  "date": "2026-07-19",
+  "hours": [9, 18],
+  "utc_offset": 1,
+  "waiting_area": [[-3, -1.6], [3, -1.6], [3, 0.6], [-3, 0.6]],
+  "buildable_area": [[-6, -4], [6, -4], [6, 1.5], [-6, 1.5]],
+  "occluders": [
+    {"id": "bldg-north", "kind": "building", "shape": "prism",
+     "footprint": [[-20, 4], [20, 4], [20, 16], [-20, 16]], "z0": 0, "z1": 12,
+     "opacity": 1.0, "source": "osm", "confidence": 0.9, "note": "terrace north of the stop, 4 levels"},
+    {"id": "bldg-south", "kind": "building", "shape": "prism",
+     "footprint": [[-18, -26], [-4, -26], [-4, -14], [-18, -14]], "z0": 0, "z1": 9,
+     "opacity": 1.0, "source": "osm", "confidence": 0.9, "note": "across the road, 3 levels"},
+    {"id": "roof", "kind": "shelter_roof", "shape": "box",
+     "center": [0, -0.3], "size": [4, 1.4], "rotation_deg": 0, "z0": 2.4, "z1": 2.5,
+     "opacity": 0.1, "source": "argon", "confidence": 0.8, "note": "clear polycarbonate roof: OSM says shelter=yes, but it gives almost no shade"},
+    {"id": "back-panel", "kind": "wall", "shape": "box",
+     "center": [0, 0.45], "size": [4, 0.05], "rotation_deg": 0, "z0": 0.1, "z1": 2.4,
+     "opacity": 0.1, "source": "argon", "confidence": 0.8, "note": "glass back panel"},
+    {"id": "tree-west", "kind": "tree", "shape": "sphere",
+     "center": [-9, -2], "radius": 2.5, "z0": 3, "z1": 8, "opacity": 0.7, "source": "argon", "confidence": 0.6},
+    {"id": "pole", "kind": "wall", "shape": "cylinder",
+     "center": [3.5, -1.8], "radius": 0.05, "z0": 0, "z1": 3, "opacity": 1.0, "source": "measured", "confidence": 1.0, "note": "bus stop flag pole, 3 m"}
+  ],
+  "proposals": [
+    {"id": "canopy-1", "kind": "canopy", "shape": "box",
+     "center": [0, -1.0], "size": [6, 2.6], "rotation_deg": 0, "z0": 2.6, "z1": 2.7,
+     "opacity": 1.0, "source": "proposal", "confidence": 1.0, "note": "opaque canopy over the waiting area"}
+  ]
+}
