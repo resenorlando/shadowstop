@@ -323,7 +323,7 @@
         <div class="r">${esc(String(a.reason || '').slice(0, 150))}</div>
         <div class="m">${esc(mat)}${a.cost_gbp != null ? ' · ' + gbp(a.cost_gbp) + ' indicative' : ''}${a.worst_time ? ' · worst ' + esc(a.worst_time) : ''}</div>`;
       $('atts').appendChild(el);
-      gsap.from(el, { x: 60, opacity: 0, duration: 0.5, ease: 'power3.out' });
+      gsap.from(el, { x: 60, opacity: 0, duration: 0.5, ease: 'power3.out' }); el.scrollIntoView({ block: 'nearest' });
       if (!a.accepted && a.worst_time) {
         $('clock').style.display = 'block'; $('clock').textContent = a.worst_time; $('clock').classList.add('flash');
         $('clockSub').style.display = 'block'; $('clockSub').textContent = 'COUNTEREXAMPLE · verifier found sun on the waiting area';
@@ -410,7 +410,7 @@
       el.textContent = `${d.label}${d.confidence != null ? ' · ' + Math.round(d.confidence * 100) + '%' : ''}`;
       eyeMarkers.push(new maplibregl.Marker({ element: el, anchor: 'bottom-left' }).setLngLat(P(x0, y0)).addTo(map));
       gsap.from(el, { opacity: 0, y: -8, duration: 0.4 });
-      await log(`[${d.kind}] ${d.label}: ${d.finding || ''}`, d.kind === 'hard_surface' || d.kind === 'road' ? 'warn' : '');
+      await log(`[${d.kind}] ${d.label}: ${String(d.finding || '').slice(0, 120)}`, d.kind === 'hard_surface' || d.kind === 'road' ? 'warn' : '');
       await sleep(500);
     }
     if (eye.summary) await log(`ARGON: ${eye.summary}`, 'ok');
@@ -460,8 +460,24 @@
 
       // Argon designs, verifier decides
       orbiting = false;
-      const { res, fromCache, accepted } = await proposeWithTrace(scene, demo);
-      if (!accepted) { await log('No design passed the verifier.', 'err'); return; }
+      let { res, fromCache, accepted } = await proposeWithTrace(scene, demo);
+      if (!accepted && demo && stop.id === HERO_ID && hero?.attempts) {
+        await log(`Live run: no design passed the verifier in ${(res.attempts || []).length} attempts. Replaying the earlier verified run (assets/hero.json).`, 'warn');
+        await sleep(1500);
+        res = { attempts: hero.attempts, final_scene: null }; fromCache = true;
+        accepted = [...hero.attempts].reverse().find((a) => a.accepted) || null;
+        $('atts').innerHTML = '';
+        $('argonElapsed').textContent = 'REPLAY of cached verified run (assets/hero.json)';
+        for (const a of hero.attempts) {
+          const el = document.createElement('div');
+          el.className = 'att ' + (a.accepted ? 'ok' : 'bad');
+          el.innerHTML = `<div class="h"><span>${esc(a.by || '')}${a.score_after != null ? ' · ' + Math.round((a.score_after.score ?? a.score_after) * 100) + '% shade' : ''}</span><span class="stamp">${a.accepted ? 'ACCEPTED' : 'REJECTED'}</span></div>
+            <div class="r">${esc(String(a.reason || '').slice(0, 150))}</div><div class="m">${esc(a.material_label || a.material || '')}${a.cost_gbp != null ? ' · ' + gbp(a.cost_gbp) + ' indicative' : ''}</div>`;
+          $('atts').appendChild(el); gsap.from(el, { x: 60, opacity: 0, duration: 0.5 }); el.scrollIntoView({ block: 'nearest' });
+          await sleep(1400);
+        }
+      }
+      if (!accepted) { await log('No design passed the verifier. Nothing is shown as a fix.', 'err'); return; }
       await log(`ACCEPTED: ${accepted.material || 'design'} · ${accepted.cost_gbp != null ? gbp(accepted.cost_gbp) : ''}`, 'ok');
 
       // AFTER
