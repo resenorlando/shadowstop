@@ -196,3 +196,51 @@ def render_fix(image: tuple[bytes, str], scene: dict, proposal: dict) -> tuple[b
         if getattr(part, "inline_data", None) and part.inline_data.data:
             return part.inline_data.data, part.inline_data.mime_type or "image/png", prompt
     raise RuntimeError("image model returned no image")
+
+
+def satellite_tile_image(lat: float, lon: float, z: int = 19, span: int = 2) -> tuple[bytes, dict]:
+    """Stitch Esri World Imagery tiles around a point into one JPEG. Returns (jpeg, georef)."""
+    import io
+    import math as _m
+    import requests
+    from PIL import Image
+    n = 2 ** z
+    fx = (lon + 180) / 360 * n
+    fy = (1 - _m.log(_m.tan(_m.radians(lat)) + 1 / _m.cos(_m.radians(lat))) / _m.pi) / 2 * n
+    cx, cy = int(fx), int(fy)
+    size = 256 * (2 * span + 1)
+    img = Image.new("RGB", (size, size))
+    for dx in range(-span, span + 1):
+        for dy in range(-span, span + 1):
+            url = f"https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{cy + dy}/{cx + dx}"
+            r = requests.get(url, timeout=15, headers={"User-Agent": "ShadowStop-hackathon/0.1"})
+            img.paste(Image.open(io.BytesIO(r.content)).convert("RGB"), ((dx + span) * 256, (dy + span) * 256))
+    def px_to_ll(px, py):
+        tx = cx - span + px / 256
+        ty = cy - span + py / 256
+        lo = tx / n * 360 - 180
+        la = _m.degrees(_m.atan(_m.sinh(_m.pi * (1 - 2 * ty / n))))
+        return la, lo
+    nw, se = px_to_ll(0, 0), px_to_ll(size, size)
+    buf = io.BytesIO()
+    img.save(buf, "JPEG", quality=88)
+    stop_px = [(fx - (cx - span)) * 256, (fy - (cy - span)) * 256]
+    return buf.getvalue(), {"size": size, "north": nw[0], "west": nw[1], "south": se[0], "east": se[1], "stop_px": stop_px}
+
+
+def satellite_eye(lat: float, lon: float, name: str = "bus stop") -> dict:
+    """Argon inspects the real aerial image of the stop and marks what matters for heat exposure."""
+    jpeg, geo = satellite_tile_image(lat, lon)
+    system = ("You are an urban heat-exposure analyst reading a high-resolution aerial photo. "
+              "Report only what is visible. Coordinates are pixels in this image (origin top-left).")
+    prompt = {
+        "task": ("The bus stop is at pixel " + str([round(v) for v in geo["stop_px"]]) + f" ({name}). "
+                 "Return JSON {detections: [{label, kind: 'shelter'|'tree_canopy'|'hard_surface'|'building_shadow'|"
+                 "'waiting_area'|'road'|'other', box: [x0,y0,x1,y1] in pixels, finding: one short technical sentence about "
+                 "heat or shade relevance, confidence: 0..1}], summary: one sentence}. "
+                 "Give 5-10 detections focused within ~40 m of the stop."),
+        "image_size_px": geo["size"],
+    }
+    out = _ask([_image_part(jpeg, "image/jpeg"), json.dumps(prompt)], system)
+    import base64
+    return {"image_b64": base64.b64encode(jpeg).decode(), "georef": geo, **out}

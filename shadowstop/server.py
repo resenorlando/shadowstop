@@ -56,6 +56,15 @@ def heatgrid(req: HeatReq):
     return engine.heatgrid(req.scene, req.include_proposals, min(req.radius, 100.0), max(req.step, 1.0), req.minutes_step)
 
 
+@app.get("/api/satellite-eye")
+def satellite_eye(lat: float, lon: float, name: str = "bus stop"):
+    """Argon reads the real aerial image around the stop and returns labelled detections (pixel boxes + georef)."""
+    try:
+        return argon.satellite_eye(lat, lon, name)
+    except Exception as e:
+        raise HTTPException(502, f"Argon satellite analysis failed: {e}")
+
+
 @app.get("/api/scene/demo")
 def scene_demo():
     return json.loads((ROOT / "scenes" / "demo.json").read_text(encoding="utf-8"))
