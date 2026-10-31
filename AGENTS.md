@@ -15,14 +15,14 @@ A TfL / borough bus-infrastructure officer deciding which shelters to upgrade, f
 |---|---|
 | `shadowstop/sun.py` | NOAA sun position (azimuth clockwise from north, elevation with refraction), local↔UTC |
 | `shadowstop/geometry.py` | Vectorised ray casting: prisms (boxes and cylinders become prisms), ellipsoid tree crowns, partial opacity |
-| `shadowstop/engine.py` | **The verifier**: grid over the waiting area at 1.2 m, 15-minute steps, `score()`, `check_constraints()`, `evaluate()` (accept/reject + reasons + counterexample), `search_best_canopy()` (coarse brute-force reference), `shade_at()` |
+| `shadowstop/engine.py` | **The verifier**: 0.5 m grid over the waiting area at 1.2 m height, 15-minute steps, `score()`, `check_constraints()`, `evaluate()` (accept/reject + reasons + counterexample), `search_best_canopy()` (coarse brute-force reference), `shade_at()` |
 | `shadowstop/materials.py` | Material catalogue (opacity, indicative £ fixed + £/m², life) and `shade_value()` (£ per extra shaded passenger-hour). Costs are labelled indicative |
 | `shadowstop/osm.py` | Overpass, with a fallback to the main OSM API (Overpass times out on the venue network). Responses are cached in `scenes/cache/`. `scene_from_osm()`, `scan()` |
 | `shadowstop/argon.py` | All Gemini calls: `propose_fix` (Interactions API, `thinking_level` from env `SHADOWSTOP_THINKING`, default `low`, retries chained with `previous_interaction_id`, falls back to `generate_content`), `read_scene` (photos → scene corrections), `read_photo_shade`, `render_fix` (Nano Banana 2.1) |
 | `shadowstop/server.py` | FastAPI: `/api/health`, `/api/sun`, `/api/score`, `/api/scene/demo`, `/api/scene/from_osm`, `/api/scan`, `/api/propose` (body `{scene, budget_gbp}`), `/api/read-scene`, `/api/photo-check`, `/api/render-fix`; serves `web/` at `/` |
 | `web/` | Static Three.js 0.160 + Leaflet 1.9.4 app (no build step): map and scan, 3D scene, time slider, before/after, heatmap, verification panel, Argon attempt log, budget, business case, render panel, approve/export, photo check. `web/engine.js` is an in-browser fallback scorer used only if the server is down (labelled on screen) |
 | `scenes/demo.json` | Rehearsed synthetic scene (glass shelter). The Hackney stop is built live from OSM |
-| `tests/test_engine.py` | 17 known-answer tests (solstice sun angle, a pole's shadow length, roof vs low sun, glass, tree, buildings, constraints) |
+| `tests/test_engine.py` | Known-answer tests (solstice sun angle, a pole's shadow length, roof vs low sun, glass, tree, buildings, constraints) |
 | `SCENE_SCHEMA.md` | Scene JSON format: local metres, x = east, y = north, z = up |
 
 ## Run

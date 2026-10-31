@@ -4,7 +4,20 @@
 
 On a heatwave day, people waiting for a bus stand in full sun, often under a "shelter" with a clear roof. ShadowStop scans every stop in an area, rebuilds each stop in 3D from OpenStreetMap plus Gemini 4 Argon's reading of street photos, and computes how much of the waiting area is actually shaded through the day. Argon then designs a canopy or tree, and **a deterministic geometry engine accepts or rejects every design**. Nothing on screen is a generated picture of success: every number is ray-cast from the real sun position.
 
-> Demo stop: a glass shelter gives **14%** shade across a July day (1.7% at lunchtime). The "obvious fix" (a solid roof) is **rejected** by the verifier: at 11:45 only 17% of the waiting area is shaded. Argon's canopy, designed using the verifier's counterexample, is **accepted at 94%**.
+[![tests](https://github.com/resenorlando/shadowstop/actions/workflows/tests.yml/badge.svg)](https://github.com/resenorlando/shadowstop/actions/workflows/tests.yml)
+
+> **Hackney Town Hall** (a real stop, built from OpenStreetMap), July day: **14%** of the waiting area is shaded. The "obvious fix" (a solid roof) is **rejected** by the verifier: +14 pts only, and at 09:00 (sun az 99°, el 34°) **0%** of the waiting area is shaded. Argon's first shade sail is rejected at 18:00 (13% shaded); its redesign, made from that counterexample, is **accepted: 14% → 77%** for £3,350 (indicative) under an £8,000 budget.
+>
+> The before score and the rejection (same reason string, same 37 quarter-hour values) are re-computed from `scenes/hackney_town_hall.json` by `tests/test_api.py`; the Argon attempts are the recorded run in `web/assets/hero.json`. Synthetic demo scene: 14% before, obvious fix rejected at 11:45 (17% shaded), stored canopy accepted at 88%.
+
+![ShadowStop: demo glass shelter in 3D at 11:45 with a canopy proposal; verified shade 14% before vs 88% after, from the deterministic engine](docs/screenshot.png)
+
+## How the verifier works
+- **Grid and time:** the waiting area is sampled on a 0.5 m grid at 1.2 m (torso height), every 15 minutes across the stop's hours (default 09:00–18:00 local).
+- **Sun:** NOAA solar equations (with atmospheric refraction) give the sun's azimuth and elevation for the stop's latitude, longitude, date and UTC offset.
+- **Ray casting:** from each grid point a ray goes toward the sun and is tested against buildings, shelters and canopies (prisms) and tree crowns (ellipsoids); partial opacity lets some light through (e.g. glass roofs).
+- **Accept rules:** at least +25 points of daily shade, at least 40% of the waiting area shaded at the worst sun-up moment, buildable (underside 2.3–4.5 m, ≤ 24 m², inside the buildable zone, not in a building) and within budget.
+- **Counterexample:** a rejection names the worst time with the sun's azimuth, elevation and shade %, and that goes back to Argon to redesign; no model output ever sets a score, cost or opacity.
 
 ## How it works
 ```
@@ -34,7 +47,7 @@ Street photos ─┘   ▲                     │
 
 A rejected proposal goes back to Argon with the counterexample (time, sun azimuth and elevation, shade %).
 
-Argon is called through the **Interactions API** (`thinking_level="medium"`). Each retry is chained with `previous_interaction_id`, so Argon keeps its own earlier reasoning server-side while it reads the verifier's objections. If the Interactions call fails, it falls back to `generate_content` so a live demo never stalls. The photo images Nano Banana returns are illustrations; **every shade number comes from the verifier, not from a picture.**
+Argon is called through the **Interactions API** (`thinking_level` from env `SHADOWSTOP_THINKING`, default `low` for demo speed). Each retry is chained with `previous_interaction_id`, so Argon keeps its own earlier reasoning server-side while it reads the verifier's objections. If the Interactions call fails, it falls back to `generate_content` so a live demo never stalls. The photo images Nano Banana returns are illustrations; **every shade number comes from the verifier, not from a picture.**
 
 ## Run it
 ```bash
@@ -53,6 +66,21 @@ Tests (known-answer checks of the sun and the geometry):
 python -m pytest -q
 ```
 
+**Demo film:** open http://localhost:8000/story_v1.html and press Play (space pauses). It runs 55 s at 1920×1080 on the real Hackney Town Hall data in `web/assets/hero.json`. The interactive version is at http://localhost:8000/story.html. To record the film to MP4 (needs internet for the map tiles and the server running):
+```bash
+cd showcase-tools && npm install && npx playwright install chromium && node record.js
+```
+Output: `showcase-tools/out/shadowstop_demo.mp4`.
+
+## Deploy
+```bash
+docker build -t shadowstop .
+```
+```bash
+docker run -p 8000:8000 -e GEMINI_API_KEY=... shadowstop
+```
+Cloud Run (the container honours `$PORT`): `gcloud run deploy shadowstop --source . --set-env-vars GEMINI_API_KEY=...`. Without a key, the 3D scene, scoring and verifier still work; only Argon and Nano Banana need it. CI runs the test suite (no network, no key) on every push.
+
 ## API
 | Endpoint | What it does |
 |---|---|
@@ -60,11 +88,14 @@ python -m pytest -q
 | `GET /api/scene/from_osm?lat&lon` | Builds the 3D scene for one stop |
 | `GET /api/scene/demo` | The rehearsed demo scene |
 | `POST /api/score {scene, include_proposals}` | Shade score, by time of day, heat-map cells, worst time |
-| `POST /api/propose {scene}` | Obvious fix → Argon attempts → verdicts → final scene, plus a brute-force reference search |
+| `POST /api/propose {scene, budget_gbp}` | Obvious fix → Argon attempts → verdicts → final scene, plus a brute-force reference search |
 | `POST /api/read-scene` (photos + scene) | Argon corrects the scene from photos |
 | `POST /api/photo-check` (photo + scene) | Predicted vs observed sun/shade at named points of a real photo |
 | `POST /api/render-fix` (photo + scene) | Re-verifies the design, then Nano Banana 2.1 draws it into the photo |
 | `GET /api/sun?lat&lon&date&time&utc_offset` | Sun azimuth and elevation |
+| `POST /api/heatgrid` | Shade heat grid around the stop for the map overlay |
+| `GET /api/satellite-eye?lat&lon` | Argon reads the aerial image around a stop and returns labelled detections |
+| `GET /api/geocode?q` | London postcode / area → coordinates |
 
 Scene format: [SCENE_SCHEMA.md](SCENE_SCHEMA.md).
 
