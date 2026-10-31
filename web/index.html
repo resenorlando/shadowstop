@@ -37,6 +37,10 @@
       <button class="tab" data-tab="about">How it works</button>
     </div>
     <div class="tab-body" id="tab-map">
+      <form id="postcodeForm" class="search-row">
+        <input id="postcodeInput" type="text" placeholder="London postcode / area (e.g. E8 1EA, SW9 8PS)…">
+        <button id="postcodeBtn" type="submit">Go</button>
+      </form>
       <div id="map"></div>
       <div class="row">
         <button id="scanBtn" class="primary">Scan this area</button>
@@ -106,6 +110,7 @@
       <label class="nolimit"><input id="noLimit" type="checkbox"> No limit</label>
     </div>
     <button id="proposeBtn" class="primary wide">&#10024; Ask Argon to fix it</button>
+    <button id="replayBtn" class="replay-btn wide" title="Reload last /api/propose response from localStorage">&#8634; Replay last run <span class="badge replay">REPLAY</span></button>
     <div id="proposeLog" class="log"></div>
     <div id="approvalBox" class="approval hidden">
       <div id="approvalStatus" class="approval-status">Awaiting operator review</div>
@@ -115,6 +120,7 @@
     <h2 class="sec">See it on the real street</h2>
     <div class="photo-form">
       <input id="streetInput" type="file" accept="image/*">
+      <div class="small muted">Upload a photo or leave blank to use Hackney Town Hall street photo.</div>
       <button id="renderBtn" disabled title="Needs an accepted Argon proposal">Render the verified fix into this photo</button>
       <div id="renderHint" class="small muted">Needs an accepted Argon proposal first.</div>
     </div>
@@ -123,7 +129,8 @@
     <h2 class="sec">Photo check</h2>
     <div class="photo-form">
       <input id="photoInput" type="file" accept="image/*">
-      <label class="small">Time (optional) <input id="photoTime" type="time"></label>
+      <div class="small muted">Upload a photo or leave blank to use Hackney Town Hall street photo.</div>
+      <label class="small">Time (optional) <input id="photoTime" type="time" value="14:00"></label>
       <button id="photoBtn">Check photo</button>
     </div>
     <div id="photoResult"></div>

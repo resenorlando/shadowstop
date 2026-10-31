@@ -200,3 +200,12 @@ table.pts td.y { color: var(--green); font-weight: 700; } table.pts td.n { color
 .toast { background: #2a1517; border: 1px solid var(--red); color: #ffd9d9; padding: 10px 16px; border-radius: 10px; font-size: 14px; box-shadow: 0 8px 30px rgba(0,0,0,.5); animation: slidein .25s ease; max-width: 520px; }
 .toast.info { background: #12202f; border-color: var(--blue); color: #d6e7ff; }
 .leaflet-container { background: #1b2430; }
+
+.search-row { display: flex; gap: 6px; margin-bottom: 8px; }
+.search-row input[type=text] { flex: 1; background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; font: inherit; font-size: 13px; }
+.search-row input[type=text]:focus { outline: none; border-color: var(--accent); }
+.search-row button { padding: 7px 12px; font-weight: 700; }
+.replay-btn { margin-top: 6px; font-size: 14px !important; padding: 8px 12px !important; background: var(--panel2); border: 1px dashed var(--line); color: var(--muted); display: flex; align-items: center; justify-content: center; gap: 8px; }
+.replay-btn:hover { color: var(--text); border-color: var(--yellow); }
+.badge.replay { background: var(--yellow); color: #1a1200; }
+.replay-banner { background: rgba(255, 210, 63, 0.14); border: 1px solid var(--yellow); color: var(--yellow); border-radius: 8px; padding: 6px 10px; font-size: 12px; font-weight: 700; display: flex; align-items: center; gap: 8px; }

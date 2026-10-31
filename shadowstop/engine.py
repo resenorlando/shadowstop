@@ -189,3 +189,45 @@ def shade_at(scene: dict, points_xy: list[list[float]], dt_utc, include_proposal
         return [1.0 for _ in points_xy]
     pts = np.array([[x, y, z] for x, y in points_xy], dtype=float)
     return [float(v) for v in 1.0 - transmission(pts, np.array(sun_vector(az, el)), occluders)]
+
+
+def heatgrid(scene: dict, include_proposals: bool = False, radius: float = 60.0, step: float = 2.0,
+             minutes_step: int = 30) -> dict:
+    """Ground-level direct-sun map around the stop: a real ray-cast shadow/heat field for every timestep.
+    frames[t][j*nx+i] = % of direct sun reaching that ground cell (0..100), or -1 inside a building footprint."""
+    occluders = list(scene.get("occluders", [])) + (scene.get("proposals", []) if include_proposals else [])
+    xs = np.arange(-radius + step / 2, radius, step)
+    ys = np.arange(-radius + step / 2, radius, step)
+    gx, gy = np.meshgrid(xs, ys)  # row j = y, col i = x
+    gx, gy = gx.ravel(), gy.ravel()
+    pts = np.column_stack([gx, gy, np.full(gx.size, 0.05)])
+    inside = np.zeros(gx.size, dtype=bool)
+    for occ in scene.get("occluders", []):
+        if occ.get("kind") == "building" and occ.get("shape") == "prism":
+            inside |= shapely.contains_xy(Polygon(occ["footprint"]), gx, gy)
+    wa = shapely.contains_xy(Polygon(scene["waiting_area"]), gx, gy)
+    frames, tlabels, suns, wa_sun = [], [], [], []
+    acc = np.zeros(gx.size)
+    n = 0
+    for hh, mm in times(scene, minutes_step):
+        dt = local_to_utc(scene["date"], hh, mm, scene.get("utc_offset", 0))
+        az, el = sun_position(scene["lat"], scene["lon"], dt)
+        tlabels.append(f"{hh:02d}:{mm:02d}")
+        suns.append({"az": round(az, 1), "el": round(el, 1)})
+        if el <= 0:
+            sun = np.zeros(gx.size)
+        else:
+            sun = transmission(pts, np.array(sun_vector(az, el)), occluders)
+            acc += sun
+            n += 1
+        frame = np.where(inside, -1, np.round(sun * 100)).astype(int)
+        frames.append(frame.tolist())
+        wa_sun.append(round(float(sun[wa].mean() * 100), 1) if wa.any() else None)
+    daily = np.where(inside, -1, np.round(acc / max(n, 1) * 100)).astype(int)
+    return {"origin": {"lat": scene["lat"], "lon": scene["lon"]}, "step": step, "nx": len(xs), "ny": len(ys),
+            "xs": [round(float(v), 2) for v in xs], "ys": [round(float(v), 2) for v in ys],
+            "times": tlabels, "sun": suns, "frames": frames, "daily": daily.tolist(),
+            "waiting_area": scene["waiting_area"], "waiting_area_sun_pct": wa_sun,
+            "cells": int(gx.size), "occluders": len(occluders),
+            "buildings": sum(1 for o in occluders if o.get("kind") == "building"),
+            "trees": sum(1 for o in occluders if o.get("kind") == "tree")}

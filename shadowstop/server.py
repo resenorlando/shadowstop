@@ -43,6 +43,19 @@ def score(req: ScoreReq):
     return engine.score(req.scene, include_proposals=req.include_proposals)
 
 
+class HeatReq(BaseModel):
+    scene: dict
+    include_proposals: bool = False
+    radius: float = 60.0
+    step: float = 2.0
+    minutes_step: int = 30
+
+
+@app.post("/api/heatgrid")
+def heatgrid(req: HeatReq):
+    return engine.heatgrid(req.scene, req.include_proposals, min(req.radius, 100.0), max(req.step, 1.0), req.minutes_step)
+
+
 @app.get("/api/scene/demo")
 def scene_demo():
     return json.loads((ROOT / "scenes" / "demo.json").read_text(encoding="utf-8"))

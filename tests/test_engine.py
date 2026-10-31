@@ -122,3 +122,17 @@ def test_shade_at_named_points():
     sc = _demo()
     vals = shade_at(sc, [[0, -0.3]], datetime(2026, 7, 19, 12, 0, tzinfo=timezone.utc))
     assert 0 <= vals[0] <= 1
+
+
+def test_heatgrid_open_ground_is_full_sun_and_buildings_are_masked():
+    from shadowstop.engine import heatgrid
+    sc = {"lat": 51.5, "lon": 0.0, "date": "2026-06-21", "hours": [12, 12], "utc_offset": 1,
+          "waiting_area": [[-1, -1], [1, -1], [1, 1], [-1, 1]],
+          "occluders": [{"kind": "building", "shape": "prism", "footprint": [[10, 10], [20, 10], [20, 20], [10, 20]],
+                         "z0": 0, "z1": 5, "opacity": 1}]}
+    h = heatgrid(sc, radius=30, step=2)
+    frame = h["frames"][0]
+    i = h["xs"].index(-29.0); j = h["ys"].index(-29.0)    # far corner: open ground, no shadow
+    assert frame[j * h["nx"] + i] == 100
+    i = h["xs"].index(15.0); j = h["ys"].index(15.0)      # inside the building footprint
+    assert frame[j * h["nx"] + i] == -1

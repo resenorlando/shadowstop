@@ -726,8 +726,70 @@ window.addEventListener('keydown', (e) => {
   if (e.key === ' ') { e.preventDefault(); $('playBtn').click(); }
 });
 
-// ---------------------------------------------------------------- Argon propose loop
+// ---------------------------------------------------------------- Argon propose loop + Replay last run
 $('noLimit').addEventListener('change', () => { $('budgetInput').disabled = $('noLimit').checked; });
+
+function saveProposeRun(res, sceneId) {
+  try {
+    const raw = JSON.stringify(res);
+    localStorage.setItem('shadowstop:lastPropose', raw);
+    if (sceneId) localStorage.setItem('shadowstop:lastPropose:' + sceneId, raw);
+  } catch (e) { console.warn('localStorage save failed', e); }
+}
+
+async function playProposeResponse(res, origProps, { isReplay = false } = {}) {
+  const log = $('proposeLog');
+  state.materials = res.materials || {};
+  state.budget = res.budget_gbp ?? state.budget;
+  log.innerHTML = isReplay
+    ? '<div class="replay-banner"><span class="badge replay">REPLAY</span> Replaying saved /api/propose response from localStorage</div>'
+    : '';
+  setMode('after');
+  const attempts = res.attempts || [];
+  const stepScale = isReplay ? 0.45 : 1;
+  for (let i = 0; i < attempts.length; i++) {
+    const at = attempts[i];
+    const props = Array.isArray(at.proposal) ? at.proposal : at.proposal ? [at.proposal] : [];
+    const note = props.map((p) => p.note || `${p.kind} ${p.shape}`).join('; ') || 'proposal';
+    const card = document.createElement('div');
+    card.className = 'attempt';
+    card.innerHTML = `<div class="head"><span class="num">Attempt ${i + 1}${at.by ? ' · by ' + esc(at.by) : ''}${isReplay ? ' <span class="badge replay">REPLAY</span>' : ''}</span><span class="verdict pending"><span class="spinner"></span>VERIFYING</span></div>
+      <div class="note">${esc(note)}</div>`;
+    log.appendChild(card);
+    setProposals3D(props, undefined, at.material);
+    card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    await sleep(Math.round(1500 * stepScale));
+    const sb = scoreOf(at.score_before), sa = scoreOf(at.score_after);
+    card.classList.add(at.accepted ? 'accepted' : 'rejected');
+    card.querySelector('.verdict').outerHTML = at.accepted ? '<span class="verdict ok">ACCEPTED</span>' : '<span class="verdict bad">REJECTED</span>';
+    card.insertAdjacentHTML('beforeend', `
+      <div class="nums"><span style="color:var(--red)">${pct(sb)}</span> → <span style="color:${at.accepted ? 'var(--green)' : 'var(--red)'}">${pct(sa)}</span></div>
+      ${costLine(at)}
+      ${at.reason ? `<div class="reason">${esc(at.reason)}</div>` : ''}
+      ${at.worst_time ? `<div class="cex">Counterexample: ${esc(at.worst_time)}</div>` : ''}`);
+    if (!at.accepted) {
+      setProposals3D(props, 0xc0392b, at.material);
+      if (at.worst_time) setHour(parseClock(at.worst_time)); // show the moment it fails
+    }
+    await sleep(Math.round((at.accepted ? 1200 : 2000) * stepScale));
+  }
+  const acc = [...attempts].reverse().find((a) => a.accepted) || null;
+  state.accepted = acc; // set before loading final_scene so the proposal renders in its material
+  if (res.final_scene) {
+    await loadScene(res.final_scene, { keepLog: true });
+    setMode('after');
+    $('right').scrollTo({ top: 0, behavior: 'smooth' }); // land on the big verified numbers
+    toast(isReplay ? 'Replayed last verified run (localStorage)' : 'Verified fix loaded', 'info');
+  } else if (!acc) {
+    setProposals3D(origProps);
+  }
+  state.attempts = attempts;
+  state.accepted = acc;
+  state.approved = null;
+  if (acc) addOperatorButtons(log.querySelectorAll('.attempt')[attempts.lastIndexOf(acc)]);
+  updateGate();
+}
+
 $('proposeBtn').addEventListener('click', async () => {
   if (!state.scene || state.proposing) return;
   state.proposing = true;
@@ -743,56 +805,35 @@ $('proposeBtn').addEventListener('click', async () => {
     const bv = Number($('budgetInput').value);
     const budget_gbp = noLimit || !isFinite(bv) || bv <= 0 ? null : bv;
     const res = await api('/api/propose', { method: 'POST', body: { scene: state.scene, budget_gbp }, timeout: 120000 });
-    state.materials = res.materials || {};
-    state.budget = res.budget_gbp ?? budget_gbp;
-    log.innerHTML = '';
-    setMode('after');
-    const attempts = res.attempts || [];
-    for (let i = 0; i < attempts.length; i++) {
-      const at = attempts[i];
-      const props = Array.isArray(at.proposal) ? at.proposal : at.proposal ? [at.proposal] : [];
-      const note = props.map((p) => p.note || `${p.kind} ${p.shape}`).join('; ') || 'proposal';
-      const card = document.createElement('div');
-      card.className = 'attempt';
-      card.innerHTML = `<div class="head"><span class="num">Attempt ${i + 1}${at.by ? ' · by ' + esc(at.by) : ''}</span><span class="verdict pending"><span class="spinner"></span>VERIFYING</span></div>
-        <div class="note">${esc(note)}</div>`;
-      log.appendChild(card);
-      setProposals3D(props, undefined, at.material);
-      card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      await sleep(1500);
-      const sb = scoreOf(at.score_before), sa = scoreOf(at.score_after);
-      card.classList.add(at.accepted ? 'accepted' : 'rejected');
-      card.querySelector('.verdict').outerHTML = at.accepted ? '<span class="verdict ok">ACCEPTED</span>' : '<span class="verdict bad">REJECTED</span>';
-      card.insertAdjacentHTML('beforeend', `
-        <div class="nums"><span style="color:var(--red)">${pct(sb)}</span> → <span style="color:${at.accepted ? 'var(--green)' : 'var(--red)'}">${pct(sa)}</span></div>
-        ${costLine(at)}
-        ${at.reason ? `<div class="reason">${esc(at.reason)}</div>` : ''}
-        ${at.worst_time ? `<div class="cex">Counterexample: ${esc(at.worst_time)}</div>` : ''}`);
-      if (!at.accepted) {
-        setProposals3D(props, 0xc0392b, at.material);
-        if (at.worst_time) setHour(parseClock(at.worst_time)); // show the moment it fails
-      }
-      await sleep(at.accepted ? 1200 : 2000);
-    }
-    const acc = [...attempts].reverse().find((a) => a.accepted) || null;
-    state.accepted = acc; // set before loading final_scene so the proposal renders in its material
-    if (res.final_scene) {
-      await loadScene(res.final_scene, { keepLog: true });
-      setMode('after');
-      $('right').scrollTo({ top: 0, behavior: 'smooth' }); // land on the big verified numbers
-      toast('Verified fix loaded', 'info');
-    } else if (!acc) {
-      setProposals3D(origProps);
-    }
-    state.attempts = attempts;
-    state.accepted = acc;
-    state.approved = null;
-    if (acc) addOperatorButtons(log.querySelectorAll('.attempt')[attempts.lastIndexOf(acc)]);
-    updateGate();
+    saveProposeRun(res, state.scene?.id);
+    await playProposeResponse(res, origProps, { isReplay: false });
   } catch (e) {
     log.innerHTML = '';
     setProposals3D(origProps);
     toast('Argon propose failed: ' + e.message);
+  } finally {
+    state.proposing = false;
+    busy(btn, false);
+  }
+});
+
+$('replayBtn')?.addEventListener('click', async () => {
+  if (state.proposing) return;
+  state.proposing = true;
+  const btn = $('replayBtn');
+  busy(btn, true, 'Replaying saved run…');
+  const origProps = state.scene?.proposals || [];
+  try {
+    const sceneKey = state.scene?.id ? 'shadowstop:lastPropose:' + state.scene.id : null;
+    let raw = (sceneKey && localStorage.getItem(sceneKey)) || localStorage.getItem('shadowstop:lastPropose');
+    let res = raw ? JSON.parse(raw) : null;
+    if (!res) {
+      res = await api('/scenes/_hero_prop.json', { timeout: 6000 });
+      saveProposeRun(res, res?.final_scene?.id);
+    }
+    await playProposeResponse(res, origProps, { isReplay: true });
+  } catch (e) {
+    toast('No saved run to replay yet: ' + e.message);
   } finally {
     state.proposing = false;
     busy(btn, false);
@@ -919,16 +960,24 @@ function lightbox(src) {
   d.addEventListener('click', () => d.remove());
   document.body.appendChild(d);
 }
+
+async function getPhotoOrBundled(inputEl) {
+  if (inputEl?.files?.[0]) return inputEl.files[0];
+  const resp = await fetch('/assets/hackney_mare_street.jpg');
+  if (!resp.ok) throw new Error('Choose a street photo first');
+  const blob = await resp.blob();
+  return new File([blob], 'hackney_mare_street.jpg', { type: blob.type || 'image/jpeg' });
+}
+
 $('renderBtn').addEventListener('click', async () => {
-  const f = $('streetInput').files[0];
   if (!state.accepted) return toast('Needs an accepted Argon proposal first');
-  if (!f) return toast('Choose a street photo of the stop first');
   const btn = $('renderBtn');
   busy(btn, true, 'Nano Banana is rendering… (20–60 s)');
-  const fd = new FormData();
-  fd.append('photo', f);
-  fd.append('scene', JSON.stringify(state.scene));
   try {
+    const f = await getPhotoOrBundled($('streetInput'));
+    const fd = new FormData();
+    fd.append('photo', f);
+    fd.append('scene', JSON.stringify(state.scene));
     const r = await api('/api/render-fix', { method: 'POST', form: fd, timeout: 120000 });
     const orig = URL.createObjectURL(f);
     const out = `data:${r.mime || 'image/png'};base64,${r.image_b64}`;
@@ -952,28 +1001,29 @@ $('renderBtn').addEventListener('click', async () => {
 
 // ---------------------------------------------------------------- photo check
 $('photoBtn').addEventListener('click', async () => {
-  const f = $('photoInput').files[0];
   if (!state.scene) return toast('Load a scene first');
-  if (!f) return toast('Choose a photo first');
   const btn = $('photoBtn');
   busy(btn, true, 'Argon is reading the photo…');
-  const fd = new FormData();
-  fd.append('photo', f);
-  fd.append('scene', JSON.stringify(state.scene));
-  if ($('photoTime').value) fd.append('time', $('photoTime').value);
   const out = $('photoResult');
   try {
+    const f = await getPhotoOrBundled($('photoInput'));
+    const fd = new FormData();
+    fd.append('photo', f);
+    fd.append('scene', JSON.stringify(state.scene));
+    if ($('photoTime').value) fd.append('time', $('photoTime').value);
+    fd.append('fallback_time', fmtClock(state.hour));
+    fd.append('utc_offset', String(state.scene.utc_offset ?? 0));
     const r = await api('/api/photo-check', { method: 'POST', form: fd, timeout: 90000 });
     const url = URL.createObjectURL(f);
     const pts = r.points || [];
-    const agr = r.agreement ?? (pts.length ? pts.filter((p) => p.agree).length / pts.length : null);
+    const agr = r.agreement ?? (pts.some((p) => p.agree != null) ? pts.filter((p) => p.agree).length / pts.filter((p) => p.agree != null).length : null);
     const col = agr == null ? 'var(--muted)' : agr >= 0.75 ? 'var(--green)' : agr >= 0.5 ? 'var(--yellow)' : 'var(--red)';
     out.innerHTML = `<div class="photo-res">
       <img src="${url}" alt="photo">
       <div style="display:flex;align-items:baseline;gap:12px"><span class="agree" style="color:${col}">${pct(agr)}</span><span class="muted">agreement with the model</span></div>
-      <div class="small muted">Photo time ${esc(r.photo_time ?? '?')}${r.sun ? ` · sun az ${Number(r.sun.azimuth).toFixed(0)}° el ${Number(r.sun.elevation).toFixed(0)}°` : ''}</div>
+      <div class="small muted">Photo time ${esc(r.photo_time ?? '?')}${r.sun ? ` · sun az ${Number(r.sun.azimuth).toFixed(0)}° el ${Number(r.sun.elevation).toFixed(0)}°` : ''}${r.overcast ? ' · <span style="color:var(--yellow)">overcast photo</span>' : ''}</div>
       <table class="pts"><tr><th>Point</th><th>Photo</th><th>Model</th><th></th></tr>
-      ${pts.map((p) => `<tr><td>${esc(p.label)}</td><td>${esc(p.observed)}</td><td>${esc(p.predicted)}</td><td class="${p.agree ? 'y' : 'n'}">${p.agree ? '✓' : '✗'}</td></tr>`).join('')}
+      ${pts.map((p) => `<tr title="${esc(p.evidence || '')}"><td>${esc(p.label)}</td><td>${esc(p.observed)}</td><td>${esc(p.predicted)}</td><td class="${p.agree == null ? 'muted' : p.agree ? 'y' : 'n'}">${p.agree == null ? '–' : p.agree ? '✓' : '✗'}</td></tr>`).join('')}
       </table></div>`;
     if (r.photo_time) {
       const h = parseClock(String(r.photo_time).slice(-5).includes(':') ? String(r.photo_time).match(/(\d{1,2}:\d{2})/)?.[1] : r.photo_time);
@@ -984,7 +1034,7 @@ $('photoBtn').addEventListener('click', async () => {
   } finally { busy(btn, false); }
 });
 
-// ---------------------------------------------------------------- map + scan
+// ---------------------------------------------------------------- map + scan + postcode search
 let map = null;
 let stopLayer = null;
 function initMap() {
@@ -1000,7 +1050,8 @@ function scoreColor(v) {
   const t = Math.max(0, Math.min(1, v ?? 0));
   return `hsl(${Math.round(t * 120)}, 85%, 50%)`;
 }
-$('scanBtn').addEventListener('click', async () => {
+
+async function runScan({ autoOpenWorst = false } = {}) {
   if (!map) return toast('Map not available');
   const btn = $('scanBtn');
   const b = map.getBounds();
@@ -1025,10 +1076,36 @@ $('scanBtn').addEventListener('click', async () => {
       list.appendChild(li);
     });
     toast(`Found ${stops.length} stops`, 'info');
+    if (autoOpenWorst && stops.length) {
+      await openStop(stops[0]);
+    }
   } catch (e) {
     toast('Scan failed: ' + e.message);
   } finally { busy(btn, false); }
+}
+
+$('scanBtn').addEventListener('click', () => runScan({ autoOpenWorst: false }));
+
+$('postcodeForm')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const q = ($('postcodeInput')?.value || '').trim();
+  if (!q) return toast('Enter a London postcode or area');
+  const btn = $('postcodeBtn');
+  busy(btn, true, '…');
+  try {
+    const r = await api('/api/geocode?' + new URLSearchParams({ q }), { timeout: 12000 });
+    if (map) {
+      map.setView([r.lat, r.lon], 17);
+      await sleep(80);
+      await runScan({ autoOpenWorst: true });
+    }
+  } catch (err) {
+    toast('Postcode lookup failed: ' + err.message);
+  } finally {
+    busy(btn, false);
+  }
 });
+
 async function openStop(s) {
   toast(`Reconstructing ${s.name || s.id} in 3D…`, 'info');
   $('sceneName').innerHTML = `<span class="spinner"></span>Reconstructing ${esc(s.name || s.id)}…`;
