@@ -13,12 +13,16 @@ from pydantic import BaseModel
 from shapely.geometry import Polygon
 
 from . import argon, engine, osm
-from .google_maps import router as google_maps_router
+try:  # optional Google Maps routes; the app must start without them
+    from .google_maps import router as google_maps_router
+except ImportError:
+    google_maps_router = None
 from .sun import local_to_utc, sun_position, sun_vector
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 app = FastAPI(title="ShadowStop")
-app.include_router(google_maps_router)
+if google_maps_router is not None:
+    app.include_router(google_maps_router)
 MAX_ARGON_ATTEMPTS = 3
 
 

@@ -10,7 +10,7 @@ On a heatwave day, people waiting for a bus stand in full sun, often under a "sh
 
 > **Hackney Town Hall** (a real stop, built from OpenStreetMap), July day: **14%** of the waiting area is shaded. The "obvious fix" (a solid roof) is **rejected** by the verifier: +14 pts only, and at 09:00 (sun az 99°, el 34°) **0%** of the waiting area is shaded. Argon's first shade sail is rejected at 18:00 (13% shaded); its redesign, made from that counterexample, is **accepted: 14% → 77%** for £3,350 (indicative) under an £8,000 budget.
 >
-> The before score and the rejection (same reason string, same 37 quarter-hour values) are re-computed from `scenes/hackney_town_hall.json` by `tests/test_api.py`; the Argon attempts are the recorded run in `web/assets/hero.json`. Synthetic demo scene: 14% before, obvious fix rejected at 11:45 (17% shaded), stored canopy accepted at 88%.
+> The before score and the rejection (same reason string, same 37 quarter-hour values) are re-computed from `scenes/hackney_town_hall.json` by `tests/test_api.py`, and the accepted 77% (all 37 quarter-hour values) from `scenes/hackney_accepted.json` by `tests/test_hackney_accepted.py`; the Argon attempts are the recorded run in `web/assets/hero.json`. Synthetic demo scene: 14% before, obvious fix rejected at 11:45 (17% shaded), stored canopy accepted at 88%.
 
 ![ShadowStop: demo glass shelter in 3D at 11:45 with a canopy proposal; verified shade 14% before vs 88% after, from the deterministic engine](docs/screenshot.png)
 
@@ -79,7 +79,9 @@ Tests (known-answer checks of the sun and the geometry):
 python -m pytest -q
 ```
 
-**Demo film:** open http://localhost:8000/story_v1.html and press Play (space pauses). It runs 55 s at 1920×1080 on the real Hackney Town Hall data in `web/assets/hero.json`. The interactive version is at http://localhost:8000/story.html. To record the film to MP4 (needs internet for the map tiles and the server running):
+**Data film:** [`docs/shadowstop_film.mp4`](docs/shadowstop_film.mp4) (42 s, 1080p) is rendered frame by frame from the verifier itself by `python showcase-tools/render_film.py` (needs `matplotlib`). It shows the real OpenStreetMap area, the ray-cast direct-sun exposure at 1.2 m every 15 min, the recorded Argon attempts (replay) and the before/after 14% → 77%.
+
+**Browser film:** open http://localhost:8000/story_v1.html and press Play (space pauses). It runs 55 s at 1920×1080 on the real Hackney Town Hall data in `web/assets/hero.json`. The interactive version is at http://localhost:8000/story.html. To record the film to MP4 (needs internet for the map tiles and the server running):
 ```bash
 cd showcase-tools && npm install && npx playwright install chromium && node record.js
 ```
