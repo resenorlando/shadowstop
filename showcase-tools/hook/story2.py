@@ -15,7 +15,9 @@ INSERTS = [
     (6.4, [("sat_sweep", 5.0), ("sat_expo", 3.2)]),
     (17.9, [("sat_after", 3.4)]),
 ]
-STORY_LEN = base.STORY_LEN + sum(d for _, segs in INSERTS for _, d in segs)
+# base-story ranges replaced by the inserts (the old flat exposure-grid beat 6.4-9.4)
+SKIP = {6.4: 3.0}
+STORY_LEN = base.STORY_LEN + sum(d for _, segs in INSERTS for _, d in segs) - sum(SKIP.values())
 
 CAP = {
     "sat_sweep": "Real aerial: shadows ray-cast from the sun, 09:00 → 18:00",
@@ -33,7 +35,13 @@ EXTRA_LOG = {
 
 
 def _offset_before(ts):
-    return sum(d for at, segs in INSERTS if at <= ts for _, d in segs)
+    off = 0.0
+    for at, segs in INSERTS:
+        if at <= ts:
+            off += sum(d for _, d in segs)
+            sk = SKIP.get(at, 0.0)
+            off -= min(sk, ts - at)  # lines from a skipped range land inside the insert
+    return off
 
 
 def _locate(t):
@@ -49,7 +57,7 @@ def _locate(t):
             if t < cur_new + d:
                 return (kind, t - cur_new, at)
             cur_new += d
-        prev_orig = at
+        prev_orig = at + SKIP.get(at, 0.0)
     return ("base", min(prev_orig + (t - cur_new), base.STORY_LEN - 1e-3))
 
 
@@ -57,17 +65,31 @@ def _shift_log(log):
     return [(ts + _offset_before(ts), txt) for ts, txt in log]
 
 
+def _panel(im, box, alpha=185):
+    from PIL import ImageDraw
+    x, y, w, h = box
+    ov = Image.new("RGBA", im.size, (0, 0, 0, 0))
+    ImageDraw.Draw(ov).rounded_rectangle((x - 12, y - 10, x + w + 12, y + h + 10), 12,
+                                         fill=(8, 9, 11, alpha), outline=(60, 64, 70, 200))
+    base_ = im.convert("RGBA")
+    base_.alpha_composite(ov)
+    return base_
+
+
 def _sat(kind, lt):
     if kind == "sat_sweep":
-        im = aerial.aerial_frame(lt, "sweep", dur=5.0)
+        im = aerial.aerial_frame(lt, "sweep", dur=5.0, shift_y_m=10.0)
         minutes = 540 + 540 * min(lt / 5.0, 1.0)
-        mathfx.solar(im, lt, minutes, (24, 24, 470, 300))
+        im = _panel(im, (24, 70, 1100, 385))
+        mathfx.solar(im, lt, minutes, (24, 70, 1100, 385))
     elif kind == "sat_expo":
-        im = aerial.aerial_frame(lt, "exposure")
-        mathfx.integral(im, lt, (24, 24, 560, 300), before=True)
+        im = aerial.aerial_frame(lt, "exposure", shift_y_m=8.5)
+        im = _panel(im, (24, 70, 1100, 230))
+        mathfx.integral(im, lt, (24, 70, 1100, 230), before=True)
     else:
-        im = aerial.aerial_frame(lt, "after", dur=3.4)
-        mathfx.integral(im, lt + 2.0, (24, 24, 560, 330), before=False)
+        im = aerial.aerial_frame(lt, "after", dur=3.4, shift_y_m=13.0)
+        im = _panel(im, (24, 70, 1100, 490))
+        mathfx.integral(im, lt + 2.0, (24, 70, 1100, 490), before=False)
     return im.convert("RGB")
 
 
@@ -104,10 +126,10 @@ def story(t):
         credit="Imagery © Esri, Maxar, Earthstar Geographics · shadows: ShadowStop ray casting",
     )
     if kind == "sat_sweep":
-        state.update(step="03", tag="● satellite · ray-cast shadow sweep", badge=("14", "% of waiting area shaded", 0.14))
+        state.update(step="03", tag="● satellite · ray-cast shadow sweep", badge=None)
     elif kind == "sat_expo":
-        state.update(step="03", tag="● direct-sun hours · not temperature", badge=("7.7", "hours of direct sun a day", 0.77))
+        state.update(step="03", tag="● direct-sun hours · not temperature", badge=None)
     else:
-        state.update(step="06", tag="● verified canopy · same sun", badge=("77", "% of waiting area shaded", 0.77))
+        state.update(step="06", tag="● verified canopy · same sun", badge=None)
     im = _sat(kind, lt)
     return im, state
