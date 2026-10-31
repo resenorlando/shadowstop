@@ -466,7 +466,7 @@
   {
    "by": "baseline",
    "accepted": false,
-   "reason": "shade gain +14 pts is below the +25 pt bar; at 09:00 (sun az 99 deg, el 34 deg) only 0% of the waiting area is shaded",
+   "reason": "shade gain +14 pts is below the +25 pt bar; at 15:30 (sun az 236 deg, el 49 deg) only 24% of the waiting area is shaded",
    "material": "opaque_metal_roof",
    "material_label": "Reflective opaque metal roof panel",
    "cost_gbp": 4290.0,
