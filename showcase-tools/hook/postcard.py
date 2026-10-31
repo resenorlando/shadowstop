@@ -64,6 +64,11 @@ def _photo():
 
 
 @lru_cache(maxsize=1)
+def _photo_before():
+    return Image.open(os.path.join(ASSETS, "hackney_mare_street.jpg")).convert("RGB")
+
+
+@lru_cache(maxsize=1)
 def _background() -> Image.Image:
     bg = _cover(_photo(), W, H).filter(ImageFilter.GaussianBlur(22))
     dark = Image.new("RGB", (W, H), (8, 8, 10))
@@ -137,25 +142,28 @@ def _card_static() -> Image.Image:
     # subtle paper border
     d.rectangle((10, 10, CW - 11, CH - 11), outline=RULE, width=1)
 
-    # photo panel
+    # photo panel: real "before" photo above, "after" illustration below
     px, py, ph = PAD, PAD, CH - 2 * PAD
-    photo = _cover(_photo(), PH_W, ph)
-    card.paste(photo, (px, py))
-    d.rectangle((px, py, px + PH_W - 1, py + ph - 1), outline=(60, 56, 50), width=1)
-    # label chip on photo
-    lab = "illustration of the verified design"
-    f = _font("Medium", 13)
-    tw = d.textlength(lab, font=f)
-    chip = Image.new("RGBA", (int(tw) + 26, 28), (12, 12, 14, 190))
-    card.alpha_composite(chip, (px + 12, py + 12))
-    d.text((px + 25, py + 26), lab, font=f, fill=(240, 236, 228), anchor="lm")
-    # credit
-    cred = "Mare Street by Cjc13 (CC BY-SA 3.0)"
-    f = _font("Regular", 11)
-    tw = d.textlength(cred, font=f)
-    chip = Image.new("RGBA", (int(tw) + 16, 20), (12, 12, 14, 170))
-    card.alpha_composite(chip, (px + PH_W - int(tw) - 16 - 8, py + ph - 28))
-    d.text((px + PH_W - 16, py + ph - 18), cred, font=f, fill=(225, 220, 212), anchor="rm")
+    gap = 12
+    hh = (ph - gap) // 2
+    panels = (
+        (_photo_before(), py, "BEFORE  \u00b7  real photo", "Mare Street by Cjc13 (CC BY-SA 3.0)"),
+        (_photo(), py + hh + gap, "AFTER  \u00b7  illustration of the verified design",
+         "edited from Mare Street by Cjc13 (CC BY-SA 3.0)"),
+    )
+    for img, yy, lab, cred in panels:
+        card.paste(_cover(img, PH_W, hh), (px, yy))
+        d.rectangle((px, yy, px + PH_W - 1, yy + hh - 1), outline=(60, 56, 50), width=1)
+        f = _font("SemiBold", 12)
+        tw = d.textlength(lab, font=f)
+        chip = Image.new("RGBA", (int(tw) + 24, 26), (12, 12, 14, 200))
+        card.alpha_composite(chip, (px + 10, yy + 10))
+        d.text((px + 22, yy + 23), lab, font=f, fill=(240, 236, 228), anchor="lm")
+        f = _font("Regular", 11)
+        tw = d.textlength(cred, font=f)
+        chip = Image.new("RGBA", (int(tw) + 16, 20), (12, 12, 14, 170))
+        card.alpha_composite(chip, (px + PH_W - int(tw) - 16 - 8, yy + hh - 28))
+        d.text((px + PH_W - 16, yy + hh - 18), cred, font=f, fill=(225, 220, 212), anchor="rm")
 
     # right column
     x0 = PAD + PH_W + 40
@@ -163,10 +171,12 @@ def _card_static() -> Image.Image:
     y = PAD + 4
     d.text((x0, y), "SHADOWSTOP  ·  HEAT-SHADE DIAGNOSIS  ·  19 JULY 2026", font=_font("SemiBold", 13), fill=SUN)
     y += 30
-    d.text((x0 - 2, y), h["stop"]["name"], font=_serif(46), fill=INK)
-    y += 62
-    d.text((x0, y), "Mare Street, London E8", font=_font("Medium", 19), fill=MUTED)
-    y += 40
+    d.text((x0 - 2, y), h["stop"]["name"] + ",", font=_serif(46), fill=INK)
+    y += 56
+    d.text((x0 - 1, y), "Mare Street", font=_serif(32), fill=INK)
+    d.text((x0 + d.textlength("Mare Street", font=_serif(32)) + 12, y + 12), "London E8",
+           font=_font("Medium", 17), fill=MUTED)
+    y += 50
     d.line((x0, y, x0 + xw, y), fill=RULE, width=1)
     y += 18
     diag = (
@@ -177,7 +187,9 @@ def _card_static() -> Image.Image:
     for ln in _wrap(d, diag, fq, xw):
         d.text((x0, y), ln, font=fq, fill=INK)
         y += 30
-    card.info["stats_y"] = y + 14
+    card.info["stats_y"] = y + 12
+    # tagline sits between the stats and the footer
+    d.text((x0, y + 12 + 3 * 74 + 4), "Argon proposes. The verifier decides.", font=_serif(22), fill=INK)
     card.info["x0"] = x0
     card.info["xw"] = xw
 
@@ -192,9 +204,10 @@ def _card_static() -> Image.Image:
     d.line((x0, fy - 14, qx - 24, fy - 14), fill=RULE, width=1)
     fx = _font("SemiBold", 15)
     fr = _font("Regular", 15)
-    d.text((x0, fy), "Verified fix", font=fx, fill=INK)
-    fix = (f"tensioned shade-sail fabric  ·  £{st['cost_gbp']:,.0f} indicative  ·  "
-           f"£{st['gbp_per_shaded_passenger_hour']:.2f} per extra shaded passenger-hour")
+    d.text((x0, fy), f"Verified fix  \u00b7  {st['shade_before_pct']}% \u2192 {st['shade_after_pct']}%  \u00b7  "
+           f"\u00a3{st['cost_gbp']:,.0f} indicative", font=fx, fill=INK)
+    fix = (f"tensioned shade-sail fabric  \u00b7  "
+           f"\u00a3{st['gbp_per_shaded_passenger_hour']:.2f} per extra shaded passenger-hour")
     for i, ln in enumerate(_wrap(d, fix, fr, qx - 24 - x0)):
         d.text((x0, fy + 22 + i * 21), ln, font=fr, fill=INK)
     by = fy + 80
@@ -244,7 +257,7 @@ def _draw_stats(card: Image.Image, k_before: float, k_after: float) -> None:
             if fw > 2:
                 d.rounded_rectangle((mx, yy, mx + fw, yy + 8), radius=4, fill=col)
         d.text((mx + mw, y), "before / after", font=_font("Regular", 11), fill=MUTED, anchor="ra")
-        y += 84
+        y += 74
 
 
 def postcard(t: float) -> Image.Image:
