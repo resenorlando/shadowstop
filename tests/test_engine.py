@@ -148,7 +148,11 @@ def test_london_postcode_preset_lookup():
 
 
 def test_hackney_town_hall_protected_verdicts():
-    hero_prop = json.loads((ROOT / "scenes" / "_hero_prop.json").read_text(encoding="utf-8"))
+    import pytest
+    path = ROOT / "scenes" / "_hero_prop.json"
+    if not path.exists():  # scenes/_* is gitignored: a locally saved live Argon run
+        pytest.skip("scenes/_hero_prop.json (local saved run) not present; see tests/test_hackney_accepted.py")
+    hero_prop = json.loads(path.read_text(encoding="utf-8"))
     sc = dict(hero_prop["final_scene"], proposals=[])
     # Obvious fix is rejected (0% shade at 09:00)
     obvious = hero_prop["attempts"][0]["proposal"]
