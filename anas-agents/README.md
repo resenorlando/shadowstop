@@ -6,7 +6,7 @@ Deliverables from the final demo-polish pass. The working code stays where the a
 | File | What it is |
 |---|---|
 | `shadowstop_3d_film.mp4` | The 56 s, 1920×1080, 30 fps film built around the real 3D scene. It was rendered in a cloud container that blocks satellite tiles, so the 5–11 s fly-in dives into the 3D reconstruction instead of the satellite map. Re-record on a laptop with internet for the satellite version (see below). |
-| `qa/qa_*.jpg` | Stills from the render at the key beats (opening, fly-in, before, rejections, canopy build, before/after, ending), used for QA. |
+| `qa/qa_*.jpg` | Stills from the final render at the key beats (filename = time in the film) (opening, fly-in, before, rejections, canopy build, before/after, ending), used for QA. |
 | `cards/problem.png`, `cards/intelligence.png`, `cards/result.png` | Three 1920×1080 backup cards, rendered from the same verified scene. |
 | `STAGE_RUNBOOK.md` | Copy of `docs/STAGE_RUNBOOK.md`: the 3-minute stage workflow and grounded Q&A. |
 
@@ -19,7 +19,7 @@ Deliverables from the final demo-polish pass. The working code stays where the a
 | 19–27 s | Two rejections: the obvious solid roof (verifier: 24% at 15:30, +14 pts below the bar), and Argon's first sail (recorded run: 13% at 18:00) |
 | 27–38 s | Argon's accepted shade-sail builds, then the sun sweeps and the shadow moves |
 | 38–47 s | Identical camera, before and after side by side: 14% → 77% |
-| 47–55 s | Hero view, £3,350 indicative, ShadowStop |
+| 46–56 s | Hero view with the result card (14% → 77%, £3,350 indicative), then the ShadowStop end card from about 50 s |
 
 Every number comes from `web/assets/hero.json`, which is engine output re-checked by `tests/test_hackney_accepted.py`. Shade means the share of waiting-area time from 09:00 to 18:00 out of direct sun at 1.2 m height. It is geometry, not temperature, and not a UV measurement. Costs are indicative. The Nano Banana image is labelled as an architectural illustration.
 
