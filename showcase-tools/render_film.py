@@ -370,12 +370,14 @@ def render(i):
                     k = 1
                 else:
                     k = 2
+                import re as _re
+                _ct = [(_re.search(r"at (\d\d:\d\d)", a_.get("reason", "")) or [None, "13:00"])[1] for a_ in D["hero"]["attempts"]]
                 if k == 0:
-                    cur = D["tl"].index("09:00")
+                    cur = D["tl"].index(_ct[0])  # counterexample time recorded in hero.json
                     arr = D["eo"][cur]
                     props = [(D["obvious"], AMBER)]
                 elif k == 1:
-                    cur = D["tl"].index("18:00")
+                    cur = D["tl"].index(_ct[1])
                     arr = D["eb"][cur]
                 else:
                     cur = D["tl"].index("13:00")
