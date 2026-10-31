@@ -53,6 +53,12 @@ Tests (known-answer checks of the sun and the geometry):
 python -m pytest -q
 ```
 
+**Demo film:** open http://localhost:8000/story_v1.html and press Play (space pauses). It runs 55 s at 1920×1080 on the real Hackney Town Hall data in `web/assets/hero.json`. The interactive version is at http://localhost:8000/story.html. To record the film to MP4 (needs internet for the map tiles and the server running):
+```bash
+cd showcase-tools && npm install && npx playwright install chromium && node record.js
+```
+Output: `showcase-tools/out/shadowstop_demo.mp4`.
+
 ## API
 | Endpoint | What it does |
 |---|---|

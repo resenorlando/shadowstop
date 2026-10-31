@@ -1,0 +1,17 @@
+{
+  "name": "shadowstop-showcase-tools",
+  "version": "1.0.0",
+  "description": "Records the ShadowStop story film to MP4",
+  "scripts": {
+    "record": "node record.js"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "gsap": "3.12.5",
+    "leaflet": "1.9.4",
+    "maplibre-gl": "4.7.1",
+    "playwright": "^1.48.0"
+  },
+  "private": true
+}
