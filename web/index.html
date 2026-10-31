@@ -91,6 +91,18 @@
     <h2 class="sec">Argon proposal loop</h2>
     <button id="proposeBtn" class="primary wide">&#10024; Ask Argon to fix it</button>
     <div id="proposeLog" class="log"></div>
+    <div id="approvalBox" class="approval hidden">
+      <div id="approvalStatus" class="approval-status">Awaiting operator review</div>
+      <button id="exportBtn" class="wide" disabled>&#128196; Export council brief</button>
+    </div>
+
+    <h2 class="sec">See it on the real street</h2>
+    <div class="photo-form">
+      <input id="streetInput" type="file" accept="image/*">
+      <button id="renderBtn" disabled title="Needs an accepted Argon proposal">Render the verified fix into this photo</button>
+      <div id="renderHint" class="small muted">Needs an accepted Argon proposal first.</div>
+    </div>
+    <div id="renderResult"></div>
 
     <h2 class="sec">Photo check</h2>
     <div class="photo-form">

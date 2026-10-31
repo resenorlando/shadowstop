@@ -114,7 +114,9 @@ def propose(req: ProposeReq):
                 argon_error = f"{type(e).__name__}: {str(e)[:200]}"
                 break
             attempts.append(att)
-            history.append({"proposal": prop, "verdict": att["reason"], "shade_after": att["score_after"]})
+            history.append({"proposal": {k: v for k, v in prop.items() if k != "_interaction_id"},
+                            "verdict": att["reason"], "shade_after": att["score_after"],
+                            "interaction_id": prop.get("_interaction_id")})
             if att["accepted"]:
                 break
     ref = engine.search_best_canopy(scene)
@@ -205,6 +207,25 @@ async def photo_check(scene: str = Form(...), photo: UploadFile = File(...),
             "sun": {"azimuth": round(az, 1), "elevation": round(el, 1)},
             "overcast": seen.get("overcast"), "points": rows,
             "agreement": round(agree / n, 3) if n else None}
+
+
+@app.post("/api/render-fix")
+async def render_fix(scene: str = Form(...), photo: UploadFile = File(...)):
+    sc = json.loads(scene)
+    props = sc.get("proposals") or []
+    if not props:
+        raise HTTPException(400, "No proposal in the scene yet: ask Argon first")
+    prop = props[-1]
+    verdict = engine.evaluate(dict(sc, proposals=[]), prop)  # re-verify: only render designs that pass
+    if not verdict["accepted"]:
+        raise HTTPException(409, "This design has not passed the verifier: " + "; ".join(verdict["reasons"]))
+    import base64
+    try:
+        img, mime, prompt = argon.render_fix((await photo.read(), photo.content_type), sc, prop)
+    except Exception as e:
+        raise HTTPException(502, f"Image model failed: {e}")
+    return {"image_b64": base64.b64encode(img).decode(), "mime": mime, "prompt": prompt,
+            "proposal_id": prop.get("id"), "verified_score": verdict["score_after"]}
 
 
 app.mount("/scenes", StaticFiles(directory=ROOT / "scenes"), name="scenes")

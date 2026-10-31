@@ -12,6 +12,9 @@ from google import genai
 from google.genai import types
 
 MODEL = os.environ.get("SHADOWSTOP_MODEL", "gemini-4-argon")
+IMAGE_MODEL = os.environ.get("SHADOWSTOP_IMAGE_MODEL", "gemini-nano-banana-2.1")
+# "interactions" (recommended Interactions API, server-side state across retries) or "generate"
+API = os.environ.get("SHADOWSTOP_API", "interactions")
 _client = None
 
 
@@ -115,8 +118,24 @@ def propose_fix(scene: dict, baseline: dict, history: list[dict]) -> dict:
         "shade_by_time": [r for r in baseline.get("by_time", []) if r.get("shade") is not None][::2],
         "previous_attempts_and_verifier_verdicts": history,
     }
-    out = _ask([json.dumps(prompt)], system)
+    out = None
+    if API == "interactions":
+        try:
+            prev = history[-1].get("interaction_id") if history else None
+            kwargs = dict(model=MODEL, input=system + "\n\n" + json.dumps(prompt),
+                          generation_config={"thinking_level": "medium"})
+            if prev:  # keep Argon's own earlier reasoning server-side across verifier rejections
+                kwargs["previous_interaction_id"] = prev
+            it = client().interactions.create(**kwargs)
+            out = _json(it.output_text)
+            out["_interaction_id"] = it.id
+        except Exception as e:  # fall back to generate_content so the demo never stalls
+            out = None
+            print(f"[argon] interactions failed, falling back: {type(e).__name__}: {str(e)[:200]}")
+    if out is None:
+        out = _ask([json.dumps(prompt)], system)
     prop = out.get("proposal", out)
+    prop["_interaction_id"] = out.get("_interaction_id")
     prop.setdefault("id", f"argon-{len(history) + 1}")
     prop.setdefault("opacity", 1.0)
     prop.setdefault("rotation_deg", 0)
@@ -139,3 +158,29 @@ def read_photo_shade(scene: dict, image: tuple[bytes, str], points: list[dict]) 
                           "occluders": [{k: o.get(k) for k in ("id", "kind", "note")} for o in scene.get("occluders", [])]},
     }
     return _ask([_image_part(*image), json.dumps(prompt)], system)
+
+
+def render_fix(image: tuple[bytes, str], scene: dict, proposal: dict) -> tuple[bytes, str, str]:
+    """Nano Banana 2.1 draws the VERIFIED design into the user's own street photo.
+    The picture is an illustration; the shade numbers come only from the verifier."""
+    if proposal.get("shape") == "sphere":
+        what = (f"a street tree with a dense crown about {2 * proposal.get('radius', 2):.1f} m wide, "
+                f"crown from {proposal.get('z0', 3):.1f} m to {proposal.get('z1', 7):.1f} m high")
+    else:
+        w, d = proposal.get("size", [6, 2.5])
+        what = (f"a solid, opaque bus-stop canopy roughly {w:.1f} m long and {d:.1f} m deep, "
+                f"its underside about {proposal.get('z0', 2.6):.1f} m above the pavement")
+    prompt = (f"Edit this photo of a real bus stop. Add {what}, placed as described: "
+              f"{proposal.get('note') or 'over the area where people wait'}. "
+              "Use a simple, realistic street-furniture style (dark steel posts, matte panel roof). "
+              "Keep everything else in the photo exactly the same: same camera, buildings, people, light. "
+              "Do not add text or labels.")
+    r = client().models.generate_content(
+        model=IMAGE_MODEL,
+        contents=[_image_part(*image), prompt],
+        config=types.GenerateContentConfig(response_modalities=["IMAGE", "TEXT"]),
+    )
+    for part in r.candidates[0].content.parts:
+        if getattr(part, "inline_data", None) and part.inline_data.data:
+            return part.inline_data.data, part.inline_data.mime_type or "image/png", prompt
+    raise RuntimeError("image model returned no image")

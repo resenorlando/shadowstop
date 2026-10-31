@@ -147,6 +147,26 @@ table.pts td.y { color: var(--green); font-weight: 700; } table.pts td.n { color
 .badge.proposal { background: var(--accent); color: #1a0d05; }
 .conf { color: var(--muted); font-variant-numeric: tabular-nums; }
 
+.op-actions { display: flex; gap: 8px; margin-top: 8px; }
+.op-actions button { flex: 1; font-weight: 700; }
+.op-actions .approve { background: var(--green); border-color: var(--green); color: #04220f; }
+.op-actions .reject { background: transparent; border-color: var(--red); color: var(--red); }
+.approval { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+.approval-status { font-size: 14px; color: var(--muted); }
+.approval-status.ok { color: var(--green); font-weight: 700; font-size: 16px; }
+.approval-status.bad { color: var(--red); font-weight: 700; }
+.render-res { margin-top: 10px; }
+.render-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.render-pair figure { margin: 0; }
+.render-pair img { width: 100%; border-radius: 8px; display: block; cursor: zoom-in; border: 1px solid var(--line); }
+.render-pair figcaption { font-size: 11px; font-weight: 800; letter-spacing: 1px; color: var(--muted); margin-top: 3px; text-transform: uppercase; }
+.render-pair figure.after figcaption { color: var(--green); }
+.render-caption { font-size: 12px; color: var(--muted); margin-top: 6px; line-height: 1.4; }
+.render-caption b { color: var(--text); }
+.verified-chip { display: inline-block; background: var(--green); color: #04220f; font-weight: 800; border-radius: 6px; padding: 2px 8px; font-size: 14px; margin-top: 6px; }
+#lightbox { position: fixed; inset: 0; background: rgba(0,0,0,.88); display: flex; align-items: center; justify-content: center; z-index: 10000; cursor: zoom-out; }
+#lightbox img { max-width: 94vw; max-height: 92vh; border-radius: 10px; }
+
 #toasts { position: fixed; bottom: 96px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; z-index: 9999; }
 .toast { background: #2a1517; border: 1px solid var(--red); color: #ffd9d9; padding: 10px 16px; border-radius: 10px; font-size: 14px; box-shadow: 0 8px 30px rgba(0,0,0,.5); animation: slidein .25s ease; max-width: 520px; }
 .toast.info { background: #12202f; border-color: var(--blue); color: #d6e7ff; }

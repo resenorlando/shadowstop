@@ -88,6 +88,10 @@ const state = {
   playing: false,
   serverSun: null,    // {hour, azimuth, elevation} last /api/sun answer
   proposing: false,
+  attempts: [],       // last /api/propose attempts
+  accepted: null,     // accepted attempt (verifier said yes)
+  approved: null,     // {at: Date} once the human operator approves
+  beforeBaseline: null, // verified score before any proposal (for the brief)
 };
 
 // ---------------------------------------------------------------- three.js setup
@@ -561,7 +565,12 @@ function loadScene(scene, { keepLog = false } = {}) {
   state.before = state.after = null;
   state.serverSun = null;
   $('sceneName').textContent = scene.name || scene.id || 'Scene';
-  if (!keepLog) $('proposeLog').innerHTML = '';
+  if (!keepLog) {
+    $('proposeLog').innerHTML = '';
+    $('renderResult').innerHTML = '';
+    state.attempts = []; state.accepted = null; state.approved = null;
+    updateGate();
+  }
   $('photoResult').innerHTML = '';
   buildScene3D();
   setupSlider();
@@ -616,6 +625,8 @@ $('proposeBtn').addEventListener('click', async () => {
   const log = $('proposeLog');
   log.innerHTML = '<div class="thinking"><span class="spinner"></span>Argon proposes, the geometry engine verifies each attempt across the whole day…</div>';
   const origProps = state.scene.proposals || [];
+  state.accepted = null; state.approved = null; state.attempts = [];
+  updateGate();
   try {
     const res = await api('/api/propose', { method: 'POST', body: { scene: state.scene }, timeout: 120000 });
     log.innerHTML = '';
@@ -627,7 +638,7 @@ $('proposeBtn').addEventListener('click', async () => {
       const note = props.map((p) => p.note || `${p.kind} ${p.shape}`).join('; ') || 'proposal';
       const card = document.createElement('div');
       card.className = 'attempt';
-      card.innerHTML = `<div class="head"><span class="num">Attempt ${i + 1}</span><span class="verdict pending"><span class="spinner"></span>VERIFYING</span></div>
+      card.innerHTML = `<div class="head"><span class="num">Attempt ${i + 1}${at.by ? ' · by ' + esc(at.by) : ''}</span><span class="verdict pending"><span class="spinner"></span>VERIFYING</span></div>
         <div class="note">${esc(note)}</div>`;
       log.appendChild(card);
       setProposals3D(props);
@@ -646,14 +657,20 @@ $('proposeBtn').addEventListener('click', async () => {
       }
       await sleep(at.accepted ? 1200 : 2000);
     }
+    const acc = [...attempts].reverse().find((a) => a.accepted) || null;
     if (res.final_scene) {
       await loadScene(res.final_scene, { keepLog: true });
       setMode('after');
       $('right').scrollTo({ top: 0, behavior: 'smooth' }); // land on the big verified numbers
       toast('Verified fix loaded', 'info');
-    } else if (!attempts.some((a) => a.accepted)) {
+    } else if (!acc) {
       setProposals3D(origProps);
     }
+    state.attempts = attempts;
+    state.accepted = acc;
+    state.approved = null;
+    if (acc) addOperatorButtons(log.querySelectorAll('.attempt')[attempts.lastIndexOf(acc)]);
+    updateGate();
   } catch (e) {
     log.innerHTML = '';
     setProposals3D(origProps);
@@ -661,6 +678,110 @@ $('proposeBtn').addEventListener('click', async () => {
   } finally {
     state.proposing = false;
     busy(btn, false);
+  }
+});
+
+// ---------------------------------------------------------------- human-in-control approval + council brief
+function updateGate() {
+  const acc = !!state.accepted;
+  $('approvalBox').classList.toggle('hidden', !acc && !state.approved);
+  $('exportBtn').disabled = !state.approved;
+  const st = $('approvalStatus');
+  if (state.approved) { st.className = 'approval-status ok'; st.textContent = `✓ Approved by operator at ${fmtClock(state.approved.at.getHours() + state.approved.at.getMinutes() / 60)}`; }
+  else if (acc) { st.className = 'approval-status'; st.textContent = 'Verified by the engine. Awaiting operator approval before export.'; }
+  $('renderBtn').disabled = !acc;
+  $('renderHint').classList.toggle('hidden', acc);
+}
+
+function addOperatorButtons(card) {
+  if (!card) return;
+  const box = document.createElement('div');
+  box.className = 'op-actions';
+  box.innerHTML = '<button class="approve">✓ Approve design</button><button class="reject">✗ Reject</button>';
+  card.appendChild(box);
+  box.querySelector('.approve').addEventListener('click', () => {
+    state.approved = { at: new Date() };
+    box.innerHTML = `<div class="approval-status ok">Approved by operator at ${fmtClock(state.approved.at.getHours() + state.approved.at.getMinutes() / 60)}</div>`;
+    updateGate();
+  });
+  box.querySelector('.reject').addEventListener('click', () => {
+    state.approved = null;
+    state.accepted = null;
+    box.innerHTML = '<div class="approval-status bad">Rejected by operator: not exported</div>';
+    updateGate();
+    $('approvalBox').classList.remove('hidden');
+    const st = $('approvalStatus'); st.className = 'approval-status bad'; st.textContent = 'Design rejected by operator. Ask Argon again for a new proposal.';
+  });
+}
+
+$('exportBtn').addEventListener('click', () => {
+  if (!state.approved || !state.accepted || !state.scene) return;
+  const s = state.scene, acc = state.accepted;
+  const props = Array.isArray(acc.proposal) ? acc.proposal : [acc.proposal];
+  const brief = {
+    title: `ShadowStop council brief: ${s.name || s.id}`,
+    generated_at: new Date().toISOString(),
+    approved_by_operator_at: state.approved.at.toISOString(),
+    scene: { id: s.id, name: s.name, lat: s.lat, lon: s.lon, date: s.date, hours: s.hours, utc_offset: s.utc_offset },
+    verified: {
+      method: 'deterministic geometry engine: sun position + ray casting over the waiting area',
+      score_before: scoreOf(acc.score_before) ?? scoreOf(state.before),
+      score_after: scoreOf(acc.score_after) ?? scoreOf(state.after),
+      worst_time_before: state.before?.worst_time ?? null,
+      worst_time_after: acc.worst_time ?? state.after?.worst_time ?? null,
+      engine: state.before?._client ? 'in-browser fallback' : 'server',
+    },
+    accepted_proposal: props.length === 1 ? props[0] : props,
+    attempts: state.attempts.map((a, i) => ({
+      n: i + 1, by: a.by ?? null, proposal: a.proposal, verdict: a.accepted ? 'ACCEPTED' : 'REJECTED',
+      reason: a.reason ?? null, score_before: scoreOf(a.score_before), score_after: scoreOf(a.score_after), worst_time: a.worst_time ?? null,
+    })),
+    occluder_provenance: (s.occluders || []).map((o) => ({ id: o.id, kind: o.kind, source: o.source, confidence: o.confidence ?? null, note: o.note ?? null })),
+  };
+  const blob = new Blob([JSON.stringify(brief, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `shadowstop-${String(s.id || 'scene').replace(/[^\w.-]+/g, '_')}-brief.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  toast('Council brief exported', 'info');
+});
+
+// ---------------------------------------------------------------- render the verified fix into a street photo
+function lightbox(src) {
+  const d = document.createElement('div'); d.id = 'lightbox';
+  d.innerHTML = `<img src="${src}" alt="">`;
+  d.addEventListener('click', () => d.remove());
+  document.body.appendChild(d);
+}
+$('renderBtn').addEventListener('click', async () => {
+  const f = $('streetInput').files[0];
+  if (!state.accepted) return toast('Needs an accepted Argon proposal first');
+  if (!f) return toast('Choose a street photo of the stop first');
+  const btn = $('renderBtn');
+  busy(btn, true, 'Nano Banana is rendering… (20–60 s)');
+  const fd = new FormData();
+  fd.append('photo', f);
+  fd.append('scene', JSON.stringify(state.scene));
+  try {
+    const r = await api('/api/render-fix', { method: 'POST', form: fd, timeout: 120000 });
+    const orig = URL.createObjectURL(f);
+    const out = `data:${r.mime || 'image/png'};base64,${r.image_b64}`;
+    const vs = scoreOf(r.verified_score) ?? scoreOf(state.after);
+    $('renderResult').innerHTML = `<div class="render-res">
+      <div class="render-pair">
+        <figure><img src="${orig}" alt="original"><figcaption>Today</figcaption></figure>
+        <figure class="after"><img src="${out}" alt="with verified fix"><figcaption>With the fix${r.proposal_id ? ' (' + esc(r.proposal_id) + ')' : ''}</figcaption></figure>
+      </div>
+      ${vs != null ? `<span class="verified-chip">Verified: ${pct(vs)} shade</span>` : ''}
+      <div class="render-caption">Illustration by <b>Nano Banana 2.1</b>. The shade numbers come from the verifier, not from this picture.</div>
+    </div>`;
+    $('renderResult').querySelectorAll('img').forEach((im) => im.addEventListener('click', () => lightbox(im.src)));
+  } catch (e) {
+    toast('Render failed: ' + e.message);
+  } finally {
+    busy(btn, false);
+    updateGate();
   }
 });
 
