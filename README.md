@@ -66,7 +66,9 @@ Tests (known-answer checks of the sun and the geometry):
 python -m pytest -q
 ```
 
-**Demo film:** open http://localhost:8000/story_v1.html and press Play (space pauses). It runs 55 s at 1920×1080 on the real Hackney Town Hall data in `web/assets/hero.json`. The interactive version is at http://localhost:8000/story.html. To record the film to MP4 (needs internet for the map tiles and the server running):
+**Data film:** [`docs/shadowstop_film.mp4`](docs/shadowstop_film.mp4) (42 s, 1080p) is rendered frame by frame from the verifier itself by `python showcase-tools/render_film.py` (needs `matplotlib`). It shows the real OpenStreetMap area, the ray-cast direct-sun exposure at 1.2 m every 15 min, the recorded Argon attempts (replay) and the before/after 14% → 77%.
+
+**Browser film:** open http://localhost:8000/story_v1.html and press Play (space pauses). It runs 55 s at 1920×1080 on the real Hackney Town Hall data in `web/assets/hero.json`. The interactive version is at http://localhost:8000/story.html. To record the film to MP4 (needs internet for the map tiles and the server running):
 ```bash
 cd showcase-tools && npm install && npx playwright install chromium && node record.js
 ```
