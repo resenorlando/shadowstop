@@ -285,8 +285,8 @@ def _draw_log(im, d, t, log):
 
 def _counters(d, t, log, over=None):
     vis = " ".join(txt for t0, txt in log if t0 <= t).upper()
-    tried = vis.count("PROPOSE_FIX")
-    appr = vis.count("APPROVED")
+    tried = vis.count("PROPOSE_FIX") + vis.count("ARGON.PROPOSE")
+    appr = min(1, vis.count("APPROVED") + vis.count("HUMAN.APPROVE"))
     scanned = "17" if ("SCAN" in vis or "STOP" in vis) else "0"
     blds = "599" if ("BUILDING" in vis or "599" in vis) else "0"
     vals = {"STOPS SCANNED": scanned, "BUILDINGS": blds, "DESIGNS TRIED": str(tried), "APPROVED": str(appr)}
