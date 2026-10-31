@@ -22,7 +22,12 @@ MAIN_XY = (552, 96)
 
 
 def _mods():
-    from hook import chrome, intro, story
+    from hook import chrome, intro
+    try:  # satellite + maths beats, when those modules are available
+        from hook import story2 as story
+    except Exception as e:  # noqa: BLE001
+        print("story2 unavailable, using base story:", e)
+        from hook import story
     return intro, story, chrome
 
 
